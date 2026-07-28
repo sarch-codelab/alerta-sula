@@ -164,7 +164,7 @@
   <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
     <div class="px-5 py-4 border-b border-slate-100">
       <h2 class="font-bold text-slate-900 text-base">📞 Contactos de Emergencia</h2>
-      <p class="text-[11px] text-slate-500">Reciben SMS vía Twilio (+16087955499) al activarse alerta roja</p>
+      <p class="text-[11px] text-slate-500">Reciben SMS al activarse alerta roja (vía Android gateway)</p>
     </div>
     <div id="contacts-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100"></div>
   </section>
@@ -309,9 +309,9 @@ const CONTACTS_DB = [
   { id: 10, name: "Roberto Morales", phone: "+50496112233" }
 ];
 
-const TWILIO_PHONE = "+16087955499";
 const ANTI_SPAM_MINUTES = 5;
 const MAX_LEVEL = 12;
+const SMS_API_URL = "/api/send-sms";
 
 let currentFilter = 'all';
 let eventLog = [];
@@ -378,7 +378,16 @@ function renderLog() {
 }
 function clearLog() { eventLog = []; renderLog(); }
 
-// ============ SMS ANTI-SPAM ============
+// ============ SMS REAL VIA ANDROID ============
+async function sendSMS(phone, message) {
+  const resp = await fetch(SMS_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to: phone, message })
+  });
+  return await resp.json();
+}
+
 async function sendMassSMS(station) {
   const now = new Date();
   const lastSent = station.lastAlertSentAt ? new Date(station.lastAlertSentAt) : null;
@@ -386,28 +395,41 @@ async function sendMassSMS(station) {
     const minutesDiff = (now - lastSent) / 1000 / 60;
     if (minutesDiff < ANTI_SPAM_MINUTES) {
       const remaining = Math.ceil(ANTI_SPAM_MINUTES - minutesDiff);
-      console.log(`⏰ Alerta roja activa, pero ya se envió un SMS recientemente. Saltando... (${remaining} min restantes)`);
       addLog('skip', `SMS omitido — ${station.id}`, `Último envío hace ${minutesDiff.toFixed(1)} min. Espera ${remaining} min.`);
       showToast(`⏸️ SMS omitido (anti-spam). Espera ${remaining} min`, 'warning', 5000);
       return { sent: false, reason: 'anti-spam' };
     }
   }
   addLog('sms', `Enviando SMS a ${CONTACTS_DB.length} contactos`, `Estación: ${station.name}`);
-  showToast(`📱 Enviando SMS a ${CONTACTS_DB.length} contactos vía Twilio...`, 'info', 2500);
-  await new Promise(r => setTimeout(r, 1200));
+  showToast(`📱 Enviando SMS a ${CONTACTS_DB.length} contactos vía Android...`, 'info', 2500);
+  let ok = 0, fail = 0;
+  const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRITICO ${station.level.toFixed(2)}m. Tome precauciones.`;
+  for (const c of CONTACTS_DB) {
+    try {
+      const r = await sendSMS(c.phone, msg);
+      if (r.success) ok++; else fail++;
+    } catch { fail++; }
+  }
   station.lastAlertSentAt = now.toISOString();
-  addLog('sms', `✅ SMS masivo enviado`, `Desde ${TWILIO_PHONE} a ${CONTACTS_DB.length} contactos`);
-  showToast(`✅ Alerta enviada a ${CONTACTS_DB.length} contactos`, 'success', 4000);
-  return { sent: true };
+  addLog('sms', `✅ ${ok} SMS enviados, ${fail} fallaron`, `Estación: ${station.id}`);
+  showToast(`✅ ${ok} enviados / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
+  return { sent: true, ok, fail };
 }
 
 async function sendManualAlert(station) {
   addLog('alert', `🚨 ALERTA MANUAL — ${station.id}`, `Ignorando anti-spam. Enviando a ${CONTACTS_DB.length} contactos.`);
   showToast(`🚨 Enviando alerta manual a ${CONTACTS_DB.length} contactos...`, 'warning', 2500);
-  await new Promise(r => setTimeout(r, 1500));
+  let ok = 0, fail = 0;
+  const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRITICO ${station.level.toFixed(2)}m. Tome precauciones.`;
+  for (const c of CONTACTS_DB) {
+    try {
+      const r = await sendSMS(c.phone, msg);
+      if (r.success) ok++; else fail++;
+    } catch { fail++; }
+  }
   station.lastAlertSentAt = new Date().toISOString();
-  addLog('sms', `✅ Alerta manual enviada`, `${CONTACTS_DB.length} SMS despachados desde ${TWILIO_PHONE}`);
-  showToast(`✅ ${CONTACTS_DB.length} SMS enviados exitosamente`, 'success', 4000);
+  addLog('sms', `✅ Alerta manual: ${ok} enviados, ${fail} fallaron`, `${station.id}`);
+  showToast(`✅ ${ok} enviados / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
   renderStations();
 }
 
