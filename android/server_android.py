@@ -21,7 +21,9 @@ class SMSHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         content_len = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(content_len))
+        raw = self.rfile.read(content_len)
+        sys.stderr.write(f"[DEBUG] raw={raw!r}\n")
+        body = json.loads(raw.decode("utf-8"))
         phone = body.get("to", "")
         message = body.get("message", "")
 

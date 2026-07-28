@@ -198,10 +198,10 @@
     <div class="p-5 space-y-3" id="admin-stations-list"></div>
     <div class="p-5 border-t border-slate-200 bg-slate-50">
       <div class="flex items-start gap-3 text-xs text-slate-600">
-        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <div>
-          <p class="font-semibold text-slate-800">Lógica Anti-Spam activa</p>
-          <p class="mt-1">Al cambiar a <span class="font-semibold text-red-600">ROJO</span>, se envía SMS masivo solo si han pasado <b>5+ minutos</b> desde el último envío a esa estación.</p>
+          <p class="font-semibold text-slate-800">Gateway Android conectado</p>
+          <p class="mt-1">Los SMS se envían en tiempo real vía Android + ngrok. Sin restricción de spam.</p>
         </div>
       </div>
     </div>
@@ -300,7 +300,6 @@ const CONTACTS_DB = [
   { id: 1, name: "Sami", phone: "+50433154594" }
 ];
 
-const ANTI_SPAM_MINUTES = 5;
 const MAX_LEVEL = 12;
 const SMS_API_URL = "/api/send-sms";
 
@@ -380,19 +379,8 @@ async function sendSMS(phone, message) {
 }
 
 async function sendMassSMS(station) {
-  const now = new Date();
-  const lastSent = station.lastAlertSentAt ? new Date(station.lastAlertSentAt) : null;
-  if (lastSent) {
-    const minutesDiff = (now - lastSent) / 1000 / 60;
-    if (minutesDiff < ANTI_SPAM_MINUTES) {
-      const remaining = Math.ceil(ANTI_SPAM_MINUTES - minutesDiff);
-      addLog('skip', `SMS omitido — ${station.id}`, `Último envío hace ${minutesDiff.toFixed(1)} min. Espera ${remaining} min.`);
-      showToast(`⏸️ SMS omitido (anti-spam). Espera ${remaining} min`, 'warning', 5000);
-      return { sent: false, reason: 'anti-spam' };
-    }
-  }
-  addLog('sms', `Enviando SMS a ${CONTACTS_DB.length} contactos`, `Estación: ${station.name}`);
-  showToast(`📱 Enviando SMS a ${CONTACTS_DB.length} contactos vía Android...`, 'info', 2500);
+  addLog('sms', `Enviando SMS a ${CONTACTS_DB.length} contacto(s)`, `Estación: ${station.name}`);
+  showToast(`📱 Enviando SMS vía Android...`, 'info', 1500);
   let ok = 0, fail = 0;
   const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRITICO ${station.level.toFixed(2)}m. Tome precauciones.`;
   for (const c of CONTACTS_DB) {
@@ -401,9 +389,9 @@ async function sendMassSMS(station) {
       if (r.success) ok++; else fail++;
     } catch { fail++; }
   }
-  station.lastAlertSentAt = now.toISOString();
-  addLog('sms', `✅ ${ok} SMS enviados, ${fail} fallaron`, `Estación: ${station.id}`);
-  showToast(`✅ ${ok} enviados / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
+  station.lastAlertSentAt = new Date().toISOString();
+  addLog('sms', `✅ ${ok} enviados, ${fail} fallaron`, `Estación: ${station.id}`);
+  showToast(`✅ ${ok} OK / ${fail} ERROR`, fail > 0 ? 'warning' : 'success', 4000);
   return { sent: true, ok, fail };
 }
 
