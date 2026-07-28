@@ -3,5 +3,8 @@
     "api/send-sms.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/", "destination": "/simulador.html" }
+  ]
 }
