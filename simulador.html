@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>SAMHN · Sistema de Alertas Hidrometeorológicas de Honduras — NOAA HADS</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.0/index.css">
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.4); opacity: 0; } }
+  .pulse-ring::before { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: currentColor; animation: pulse-ring 1.8s cubic-bezier(0.215,0.61,0.355,1) infinite; }
+  @keyframes slide-up { from { transform: translateY(120%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .toast-in { animation: slide-up 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+  @keyframes wave { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .wave { animation: wave 2.5s ease-in-out infinite; }
+  .card-enter { animation: card-in 0.4s ease-out backwards; }
+  @keyframes card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .gauge-bar { transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1); }
+  .map-pin { transition: all 0.3s ease; }
+  .map-pin:hover { transform: scale(1.3); }
+  .map-pin.active { animation: pin-pulse 2s ease-in-out infinite; }
+  @keyframes pin-pulse { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239,68,68,0.7)); } 50% { transform: scale(1.2); filter: drop-shadow(0 0 8px rgba(239,68,68,0.9)); } }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .hydrograph-img { transition: transform 0.4s ease; }
+  .hydrograph-img:hover { transform: scale(1.02); }
+  .tab-active { background: #0f172a; color: white; }
+  .tab-inactive { background: white; color: #475569; border: 1px solid #e2e8f0; }
+  .tab-inactive:hover { background: #f8fafc; }
+</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- TOP BAR -->
+<div class="bg-slate-900 text-white text-xs">
+  <div class="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Sistema operativo</span>
+      <span class="hidden sm:inline text-slate-400">·</span>
+      <span class="hidden sm:inline text-slate-300">NOAA HADS · Honduras (HN) · Sorted by NWSLI</span>
+    </div>
+    <div class="flex items-center gap-3 text-slate-300">
+      <span class="hidden sm:inline">📡 Canal CE</span>
+      <span id="live-clock" class="font-mono">--:--:--</span>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="relative">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+        </div>
+        <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></div>
+      </div>
+      <div>
+        <h1 class="font-bold text-slate-900 text-base md:text-lg leading-tight">SAMHN</h1>
+        <p class="text-[11px] text-slate-500 leading-tight">Sistema de Alertas Hidrometeorológicas · Honduras</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-xs">
+        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="text-slate-600 font-medium">10 estaciones NOAA HADS</span>
+      </div>
+      <button onclick="openAdmin()" class="p-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition" title="Panel Admin">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6 pb-24">
+
+  <!-- STATUS SUMMARY -->
+  <section class="grid grid-cols-3 gap-3 mb-6">
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-20 h-20 bg-emerald-100 rounded-full -translate-y-10 translate-x-10"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+          <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Normal</span>
+        </div>
+        <div id="count-green" class="text-3xl font-bold text-slate-900">0</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">estaciones operativas</div>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-20 h-20 bg-amber-100 rounded-full -translate-y-10 translate-x-10"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+          <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Precaución</span>
+        </div>
+        <div id="count-yellow" class="text-3xl font-bold text-slate-900">0</div>
+        <div class="text-[11px] text-slate-500 mt-0.5">monitoreo activo</div>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-red-200 relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-20 h-20 bg-red-100 rounded-full -translate-y-10 translate-x-10"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
+          <span class="text-[10px] font-semibold text-red-600 uppercase tracking-wider">Crítico</span>
+        </div>
+        <div id="count-red" class="text-3xl font-bold text-red-600">0</div>
+        <div class="text-[11px] text-red-500 mt-0.5">requiere acción</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP SECTION -->
+  <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="font-bold text-slate-900 text-base">Mapa de Estaciones NOAA HADS</h2>
+        <p class="text-[11px] text-slate-500">Red de monitoreo · Honduras (HN) · Sorted by NWSLI</p>
+      </div>
+      <div class="flex items-center gap-3 text-[10px]">
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Normal</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Precaución</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span>Crítico</span>
+      </div>
+    </div>
+    <div class="relative bg-gradient-to-br from-slate-50 to-blue-50 aspect-[16/9] overflow-hidden">
+      <img id="map-image" src="https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1b9d66dc6-7b7d-4c2a-953b-2210d0e5a2bb.png" alt="Mapa Honduras" class="w-full h-full object-cover opacity-90" />
+      <div id="map-pins" class="absolute inset-0"></div>
+    </div>
+  </section>
+
+  <!-- FILTERS -->
+  <section class="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+    <button data-filter="all" class="filter-btn px-4 py-2 rounded-full text-xs font-semibold bg-slate-900 text-white whitespace-nowrap">Todas (10)</button>
+    <button data-filter="green" class="filter-btn px-4 py-2 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-200 whitespace-nowrap"> Normal</button>
+    <button data-filter="yellow" class="filter-btn px-4 py-2 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-200 whitespace-nowrap">🟡 Precaución</button>
+    <button data-filter="red" class="filter-btn px-4 py-2 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-200 whitespace-nowrap"> Crítico</button>
+    <div class="flex-1"></div>
+    <button onclick="refreshStations()" class="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 whitespace-nowrap">
+      <svg id="refresh-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Actualizar
+    </button>
+  </section>
+
+  <!-- STATIONS GRID -->
+  <section id="stations-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"></section>
+
+  <!-- HYDROGRAPHS SECTION -->
+  <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h2 class="font-bold text-slate-900 text-base">📊 Gráficas HG — River Stage (FT)</h2>
+      <p class="text-[11px] text-slate-500">Datos NOAA HADS · Decode Data · Columna VB · GRAPH · HG Height</p>
+    </div>
+    <div class="p-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="hydrographs-grid"></div>
+    </div>
+  </section>
+
+  <!-- CONTACTS -->
+  <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h2 class="font-bold text-slate-900 text-base">📞 Contactos de Emergencia</h2>
+      <p class="text-[11px] text-slate-500">Reciben SMS vía Twilio (+16087955499) al activarse alerta roja</p>
+    </div>
+    <div id="contacts-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100"></div>
+  </section>
+
+  <!-- EVENT LOG -->
+  <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="font-bold text-slate-900 text-base">📋 Registro de Eventos</h2>
+        <p class="text-[11px] text-slate-500">Historial de alertas y cambios de estado</p>
+      </div>
+      <button onclick="clearLog()" class="text-[11px] text-slate-500 hover:text-slate-700 font-medium">Limpiar</button>
+    </div>
+    <div id="event-log" class="divide-y divide-slate-100 max-h-80 overflow-y-auto"></div>
+  </section>
+</main>
+
+<!-- ADMIN MODAL -->
+<div id="admin-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAdmin()"></div>
+  <div class="absolute inset-x-0 bottom-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl bg-white rounded-t-3xl md:rounded-2xl max-h-[90vh] overflow-y-auto">
+    <div class="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex items-center justify-between z-10">
+      <div>
+        <h3 class="font-bold text-slate-900">Panel de Administración</h3>
+        <p class="text-[11px] text-slate-500">Simula cambios de estado en la base de datos PostgreSQL</p>
+      </div>
+      <button onclick="closeAdmin()" class="p-2 rounded-lg hover:bg-slate-100">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5 space-y-3" id="admin-stations-list"></div>
+    <div class="p-5 border-t border-slate-200 bg-slate-50">
+      <div class="flex items-start gap-3 text-xs text-slate-600">
+        <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <div>
+          <p class="font-semibold text-slate-800">Lógica Anti-Spam activa</p>
+          <p class="mt-1">Al cambiar a <span class="font-semibold text-red-600">ROJO</span>, se envía SMS masivo solo si han pasado <b>5+ minutos</b> desde el último envío a esa estación.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" class="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-[60] space-y-2 pointer-events-none"></div>
+
+<script>
+// ============ DATA (NOAA HADS Real Metadata) ============
+const STATIONS_DB = [
+  {
+    id: "SFOH3", name: "RIO ULUA AT SAN FRANCISCO DE OJUERAS", location: "San Francisco de Ojueras",
+    lat: 14.7683, lng: -88.1758, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 4.85, status: "green", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 60, init: "000140" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/105f3b987-afe5-4417-84ab-5511e08e7cac.png"
+  },
+  {
+    id: "CHIH3", name: "RIO ULUA NEAR CHINDA", location: "Chinda, Santa Bárbara",
+    lat: 15.1178, lng: -88.1989, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 3.25, status: "green", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 60, init: "000150" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/19cca8644-98f4-4229-9633-8713359be075.png"
+  },
+  {
+    id: "SANH3", name: "RIO ULUA AT SANTIAGO", location: "Santiago, Yoro",
+    lat: 15.2969, lng: -87.9281, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 7.85, status: "yellow", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/15.0", coeff: "0.01/0.01" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 60, init: "000200" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/169633c11-63b0-44f4-971a-4d53f9ff9c8b.png"
+  },
+  {
+    id: "RCHH3", name: "RIO CHAMELECON EN EL TABLON", location: "El Tablón, Santa Bárbara",
+    lat: 15.3197, lng: -88.2072, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 3.85, status: "green", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/0.0", coeff: "0.0/0.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 60, init: "000210" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1ac30cf18-8460-4921-af1b-1247af0a3c25.png"
+  },
+  {
+    id: "LAVH3", name: "LA VEGONA", location: "La Vegona, Santa Bárbara",
+    lat: 15.2117, lng: -88.5378, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 2.45, status: "green", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.001/-9.0" }, PR: { interval: "60.0/0.0", coeff: "0.001/0.001" }, HG: { interval: "15.0/-9.0", coeff: "0.01/-9.0" } },
+    transmission: { interval: 60, init: "000220" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1820a4dd6-c301-4662-98f8-86d9ffbc892a.png"
+  },
+  {
+    id: "POSH3", name: "RIO JICATUYO AT SANTIAGO DE POSTA", location: "Santiago de Posta, La Paz",
+    lat: 14.9292, lng: -88.6114, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 7.95, status: "yellow", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 60, init: "000300" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/11125f75e-7dc9-4a45-bb7d-76049d8c1c3b.png"
+  },
+  {
+    id: "EMPH3", name: "RIO LEAN EN EL EMPALME", location: "El Empalme, Atlántida",
+    lat: 15.6361, lng: -87.3286, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 2.15, status: "green", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 60, init: "001630" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/17701aa96-272a-4e39-bbb4-c56f135bb4ef.png"
+  },
+  {
+    id: "MANH3", name: "RIO CANGREJAL AT LAS MANGAS", location: "Las Mangas, Atlántida",
+    lat: 15.7247, lng: -86.7256, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 2.05, status: "green", lastAlertSentAt: null,
+    peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } },
+    transmission: { interval: 240, init: "021630" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1bdebd7d7-4dba-4bd9-9f2c-deaed1af203d.png"
+  },
+  {
+    id: "PUDH3", name: "PUENTE LA DEMOCRACIA", location: "La Democracia, Yoro",
+    lat: 15.4039, lng: -87.8200, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 10.85, status: "red", lastAlertSentAt: null,
+    peCodes: { PP: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, PR: { interval: "60.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/-9.0", coeff: "0.1/-9.0" } },
+    transmission: { interval: 60, init: "004918" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/10a24f874-abb6-414f-9059-9dcc28a37a1e.png"
+  },
+  {
+    id: "SPSH3", name: "SAN PEDRO SULA", location: "San Pedro Sula, Cortés",
+    lat: 15.5078, lng: -88.0661, owner: "CENAOS/SAMHN", channel: "CE",
+    level: 2.65, status: "green", lastAlertSentAt: null,
+    peCodes: { TN: { interval: "60.0/-9.0", coeff: "0.01/-9.0" }, TX: { interval: "60.0/0.0", coeff: "1.0/0.01" }, PP: { interval: "15.0/15.0", coeff: "1.0/0.01" }, PR: { interval: "1440.0/-9.0", coeff: "1.0/-9.0" } },
+    transmission: { interval: 60, init: "000540" },
+    graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1b2bb2f6b-69a7-4827-938d-336e6ef3bd4e.png"
+  }
+];
+
+const CONTACTS_DB = [
+  { id: 1, name: "María López", phone: "+50487778792" },
+  { id: 2, name: "Carlos Martínez", phone: "+50499445566" },
+  { id: 3, name: "Ana Reyes", phone: "+50499778899" },
+  { id: 4, name: "José Hernández", phone: "+50498112233" },
+  { id: 5, name: "Laura Flores", phone: "+50498445566" },
+  { id: 6, name: "Pedro Ruiz", phone: "+50498778899" },
+  { id: 7, name: "Sofía Torres", phone: "+50497112233" },
+  { id: 8, name: "Miguel Castro", phone: "+50497445566" },
+  { id: 9, name: "Carmen Díaz", phone: "+50497778899" },
+  { id: 10, name: "Roberto Morales", phone: "+50496112233" }
+];
+
+const TWILIO_PHONE = "+16087955499";
+const ANTI_SPAM_MINUTES = 5;
+const MAX_LEVEL = 12;
+
+let currentFilter = 'all';
+let eventLog = [];
+
+// ============ UTILS ============
+const statusConfig = {
+  green: { label: 'NORMAL', bg: 'bg-emerald-500', bgSoft: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', gradient: 'from-emerald-500 to-emerald-600', hex: '#10b981' },
+  yellow: { label: 'PRECAUCIÓN', bg: 'bg-amber-500', bgSoft: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', gradient: 'from-amber-500 to-orange-500', hex: '#f59e0b' },
+  red: { label: 'CRÍTICO', bg: 'bg-red-500', bgSoft: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', gradient: 'from-red-500 to-rose-600', hex: '#ef4444' }
+};
+
+function formatTimeAgo(date) {
+  if (!date) return 'Nunca';
+  const diff = (Date.now() - new Date(date).getTime()) / 1000;
+  if (diff < 60) return `Hace ${Math.floor(diff)}s`;
+  if (diff < 3600) return `Hace ${Math.floor(diff/60)} min`;
+  if (diff < 86400) return `Hace ${Math.floor(diff/3600)} h`;
+  return `Hace ${Math.floor(diff/86400)} d`;
+}
+
+function getLevelPercent(level) { return Math.min((level / MAX_LEVEL) * 100, 100); }
+function getLevelColor(level) {
+  if (level < 3.0) return 'bg-emerald-500';
+  if (level <= 4.0) return 'bg-amber-500';
+  return 'bg-red-500';
+}
+
+// ============ TOAST ============
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toast-container');
+  const colors = { success: 'bg-emerald-600', error: 'bg-red-600', info: 'bg-slate-900', warning: 'bg-amber-600' };
+  const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+  const toast = document.createElement('div');
+  toast.className = `toast-in pointer-events-auto ${colors[type]} text-white px-4 py-3 rounded-xl shadow-2xl flex items-start gap-3`;
+  toast.innerHTML = `<span class="text-xl flex-shrink-0">${icons[type]}</span><div class="flex-1 text-sm font-medium leading-snug">${message}</div>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
+    toast.style.opacity = '0'; toast.style.transform = 'translateY(20px)';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// ============ EVENT LOG ============
+function addLog(type, title, detail) {
+  eventLog.unshift({ type, title, detail, time: new Date() });
+  if (eventLog.length > 50) eventLog.pop();
+  renderLog();
+}
+function renderLog() {
+  const log = document.getElementById('event-log');
+  if (eventLog.length === 0) { log.innerHTML = '<div class="p-6 text-center text-sm text-slate-400">Sin eventos registrados</div>'; return; }
+  const icons = { sms: '📱', status: '🔄', alert: '🚨', info: 'ℹ️', skip: '⏸️' };
+  log.innerHTML = eventLog.map(e => `
+    <div class="px-5 py-3 flex items-start gap-3 hover:bg-slate-50">
+      <span class="text-lg flex-shrink-0">${icons[e.type] || '•'}</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-slate-900">${e.title}</p>
+        <p class="text-xs text-slate-500 mt-0.5">${e.detail}</p>
+      </div>
+      <span class="text-[10px] text-slate-400 flex-shrink-0 font-mono">${formatTimeAgo(e.time)}</span>
+    </div>
+  `).join('');
+}
+function clearLog() { eventLog = []; renderLog(); }
+
+// ============ SMS ANTI-SPAM ============
+async function sendMassSMS(station) {
+  const now = new Date();
+  const lastSent = station.lastAlertSentAt ? new Date(station.lastAlertSentAt) : null;
+  if (lastSent) {
+    const minutesDiff = (now - lastSent) / 1000 / 60;
+    if (minutesDiff < ANTI_SPAM_MINUTES) {
+      const remaining = Math.ceil(ANTI_SPAM_MINUTES - minutesDiff);
+      console.log(`⏰ Alerta roja activa, pero ya se envió un SMS recientemente. Saltando... (${remaining} min restantes)`);
+      addLog('skip', `SMS omitido — ${station.id}`, `Último envío hace ${minutesDiff.toFixed(1)} min. Espera ${remaining} min.`);
+      showToast(`⏸️ SMS omitido (anti-spam). Espera ${remaining} min`, 'warning', 5000);
+      return { sent: false, reason: 'anti-spam' };
+    }
+  }
+  addLog('sms', `Enviando SMS a ${CONTACTS_DB.length} contactos`, `Estación: ${station.name}`);
+  showToast(`📱 Enviando SMS a ${CONTACTS_DB.length} contactos vía Twilio...`, 'info', 2500);
+  await new Promise(r => setTimeout(r, 1200));
+  station.lastAlertSentAt = now.toISOString();
+  addLog('sms', `✅ SMS masivo enviado`, `Desde ${TWILIO_PHONE} a ${CONTACTS_DB.length} contactos`);
+  showToast(`✅ Alerta enviada a ${CONTACTS_DB.length} contactos`, 'success', 4000);
+  return { sent: true };
+}
+
+async function sendManualAlert(station) {
+  addLog('alert', `🚨 ALERTA MANUAL — ${station.id}`, `Ignorando anti-spam. Enviando a ${CONTACTS_DB.length} contactos.`);
+  showToast(`🚨 Enviando alerta manual a ${CONTACTS_DB.length} contactos...`, 'warning', 2500);
+  await new Promise(r => setTimeout(r, 1500));
+  station.lastAlertSentAt = new Date().toISOString();
+  addLog('sms', `✅ Alerta manual enviada`, `${CONTACTS_DB.length} SMS despachados desde ${TWILIO_PHONE}`);
+  showToast(`✅ ${CONTACTS_DB.length} SMS enviados exitosamente`, 'success', 4000);
+  renderStations();
+}
+
+async function updateStationStatus(stationId, newStatus) {
+  const station = STATIONS_DB.find(s => s.id === stationId);
+  if (!station) return;
+  const oldStatus = station.status;
+  station.status = newStatus;
+  if (newStatus === 'green') station.level = 1 + Math.random() * 1.9;
+  if (newStatus === 'yellow') station.level = 3 + Math.random() * 0.99;
+  if (newStatus === 'red') station.level = 4.1 + Math.random() * 2;
+  addLog('status', `${stationId}: ${oldStatus.toUpperCase()} → ${newStatus.toUpperCase()}`, `Nivel: ${station.level.toFixed(2)}m`);
+  showToast(`${station.id} actualizado a ${statusConfig[newStatus].label}`, 'success', 2500);
+  if (newStatus === 'red') await sendMassSMS(station);
+  renderStations();
+  renderAdmin();
+  renderMapPins();
+}
+
+// ============ RENDER STATIONS ============
+function renderStations() {
+  const grid = document.getElementById('stations-grid');
+  const filtered = currentFilter === 'all' ? STATIONS_DB : STATIONS_DB.filter(s => s.status === currentFilter);
+  document.getElementById('count-green').textContent = STATIONS_DB.filter(s => s.status === 'green').length;
+  document.getElementById('count-yellow').textContent = STATIONS_DB.filter(s => s.status === 'yellow').length;
+  document.getElementById('count-red').textContent = STATIONS_DB.filter(s => s.status === 'red').length;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-400"><div class="text-5xl mb-3">🔍</div><p class="font-medium">No hay estaciones con este filtro</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map((s, i) => {
+    const cfg = statusConfig[s.status];
+    const isRed = s.status === 'red';
+    const levelPct = getLevelPercent(s.level);
+    const levelColor = getLevelColor(s.level);
+    const peList = Object.keys(s.peCodes).join(', ');
+    return `
+      <article class="card-enter bg-white rounded-2xl shadow-sm border ${cfg.border} overflow-hidden hover:shadow-lg transition-all" style="animation-delay: ${i * 40}ms">
+        <div class="bg-gradient-to-r ${cfg.gradient} p-4 text-white relative overflow-hidden">
+          ${isRed ? '<div class="absolute top-2 right-2 px-2 py-0.5 bg-white/20 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur">⚠️ Emergencia</div>' : ''}
+          <div class="flex items-start gap-3">
+            <div class="relative flex-shrink-0">
+              ${isRed ? '<div class="pulse-ring text-white/40 w-10 h-10 rounded-full"></div>' : ''}
+              <div class="relative w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center font-bold text-sm">${s.id.substring(0,2)}</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-[10px] font-semibold uppercase tracking-wider opacity-80 font-mono">${s.id}</div>
+              <h3 class="font-bold text-sm leading-tight mt-0.5 line-clamp-2">${s.name}</h3>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 space-y-3">
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="truncate">${s.location}</span>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Nivel del río (HG)</span>
+              <span class="text-xs font-bold ${cfg.text}">${s.level.toFixed(2)} FT</span>
+            </div>
+            <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div class="h-full ${levelColor} gauge-bar rounded-full" style="width: ${levelPct}%"></div>
+            </div>
+            <div class="flex justify-between mt-1 text-[9px] text-slate-400 font-mono">
+              <span>0 FT</span><span>3 FT</span><span>4 FT</span><span>12 FT</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[10px]">
+            <div class="bg-slate-50 rounded-lg p-2">
+              <div class="text-slate-500">PE Codes</div>
+              <div class="font-semibold text-slate-700 truncate">${peList}</div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-2">
+              <div class="text-slate-500">Transmisión</div>
+              <div class="font-semibold text-slate-700">${s.transmission.interval} min</div>
+            </div>
+          </div>
+
+          <div class="text-[10px] text-slate-400 flex items-center gap-1 pt-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Último SMS: ${formatTimeAgo(s.lastAlertSentAt)}
+          </div>
+
+          <button onclick="sendManualAlert(STATIONS_DB.find(x=>x.id==='${s.id}'))" class="w-full px-3 py-2.5 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center justify-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            ENVIAR ALERTA ROJA
+          </button>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+// ============ RENDER HYDROGRAPHS ============
+function renderHydrographs() {
+  const grid = document.getElementById('hydrographs-grid');
+  grid.innerHTML = STATIONS_DB.map(s => {
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition">
+        <div class="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="text-[10px] font-mono text-slate-500">${s.id}</div>
+            <div class="text-xs font-semibold text-slate-900 truncate">${s.name}</div>
+          </div>
+          <div class="ml-2 px-2 py-0.5 rounded-full ${cfg.bgSoft} ${cfg.text} text-[9px] font-bold">${cfg.label}</div>
+        </div>
+        <div class="bg-white p-2">
+          <img src="${s.graphUrl}" alt="HG ${s.id}" class="hydrograph-img w-full rounded-lg" loading="lazy" />
+        </div>
+        <div class="px-3 py-2 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-600 flex items-center justify-between">
+          <span>HG Height, river stage (FT)</span>
+          <span class="font-mono font-semibold">${s.level.toFixed(2)} FT</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============ RENDER CONTACTS ============
+function renderContacts() {
+  const list = document.getElementById('contacts-list');
+  list.innerHTML = CONTACTS_DB.map(c => `
+    <div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition">
+      <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+        ${c.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-slate-900 truncate">${c.name}</div>
+        <div class="text-xs text-slate-500 font-mono">${c.phone}</div>
+      </div>
+      <div class="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">SMS</div>
+    </div>
+  `).join('');
+}
+
+// ============ MAP PINS ============
+function renderMapPins() {
+  const container = document.getElementById('map-pins');
+  const latMin = 13, latMax = 16.5, lngMin = -89.5, lngMax = -83;
+  container.innerHTML = STATIONS_DB.map(s => {
+    const x = ((s.lng - lngMin) / (lngMax - lngMin)) * 100;
+    const y = 100 - ((s.lat - latMin) / (latMax - latMin)) * 100;
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="map-pin ${s.status === 'red' ? 'active' : ''} absolute" style="left: ${x}%; top: ${y}%; transform: translate(-50%, -50%);">
+        <div class="relative">
+          <div class="w-4 h-4 rounded-full ${cfg.bg} border-2 border-white shadow-lg"></div>
+          <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white/90 backdrop-blur px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-700 whitespace-nowrap shadow">${s.id}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============ ADMIN MODAL ============
+function openAdmin() { renderAdmin(); document.getElementById('admin-modal').classList.remove('hidden'); }
+function closeAdmin() { document.getElementById('admin-modal').classList.add('hidden'); }
+function renderAdmin() {
+  const list = document.getElementById('admin-stations-list');
+  list.innerHTML = STATIONS_DB.map(s => {
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+        <div class="flex items-center justify-between mb-2">
+          <div class="min-w-0 flex-1">
+            <div class="text-[10px] font-mono text-slate-500">${s.id}</div>
+            <div class="text-sm font-semibold text-slate-900 truncate">${s.name}</div>
+          </div>
+          <div class="ml-2 px-2 py-1 rounded-full ${cfg.bgSoft} ${cfg.text} text-[10px] font-bold">${cfg.label}</div>
+        </div>
+        <div class="grid grid-cols-3 gap-1.5">
+          <button onclick="updateStationStatus('${s.id}','green')" class="px-2 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-500 hover:text-white transition">🟢 Verde</button>
+          <button onclick="updateStationStatus('${s.id}','yellow')" class="px-2 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-amber-200 text-amber-700 hover:bg-amber-500 hover:text-white transition"> Amarillo</button>
+          <button onclick="updateStationStatus('${s.id}','red')" class="px-2 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-500 hover:text-white transition">🔴 Rojo</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============ FILTERS ============
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      b.classList.remove('bg-slate-900', 'text-white');
+      b.classList.add('bg-white', 'text-slate-700', 'border', 'border-slate-200');
+    });
+    btn.classList.remove('bg-white', 'text-slate-700', 'border', 'border-slate-200');
+    btn.classList.add('bg-slate-900', 'text-white');
+    renderStations();
+  });
+});
+
+function refreshStations() {
+  const icon = document.getElementById('refresh-icon');
+  icon.style.transition = 'transform 0.8s';
+  icon.style.transform = 'rotate(360deg)';
+  setTimeout(() => { icon.style.transform = ''; }, 800);
+  renderStations();
+  addLog('info', 'Datos actualizados', `${STATIONS_DB.length} estaciones consultadas`);
+  showToast('Datos actualizados', 'info', 2000);
+}
+
+// ============ CLOCK ============
+function updateClock() { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('es-HN', { hour12: false }); }
+setInterval(updateClock, 1000);
+updateClock();
+
+// ============ INIT ============
+renderStations();
+renderHydrographs();
+renderContacts();
+renderMapPins();
+renderLog();
+addLog('info', 'Sistema iniciado', 'Conexión establecida con API Server');
+addLog('info', 'Base de datos cargada', `${STATIONS_DB.length} estaciones NOAA HADS, ${CONTACTS_DB.length} contactos`);
+setInterval(renderLog, 30000);
+</script>
+</body>
+</html>
