@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SAMHN · Sistema de Alertas Hidrometeorológicas de Honduras</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>
+  window.PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="320"><rect width="100%" height="100%" fill="#e4e4e7"/><g fill="#a1a1aa" font-family="sans-serif" text-anchor="middle"><text x="300" y="156" font-size="18" font-weight="700">SAMHN</text><text x="300" y="184" font-size="13">Datos no disponibles</text></g></svg>');
+  (function () {
+    try {
+      var t = localStorage.getItem('samhn_theme');
+      if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+    } catch (e) {}
+  })();
+</script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+        colors: {
+          zinc: { 50: '#fafafa', 100: '#f4f4f5', 200: '#e4e4e7', 300: '#d4d4d8', 400: '#a1a1aa', 500: '#71717a', 600: '#52525b', 700: '#3f3f46', 800: '#27272a', 900: '#18181b', 950: '#09090b' }
+        },
+        animation: {
+          'fade-in': 'fadeIn 0.3s ease-out',
+          'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        },
+        keyframes: {
+          fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+          slideUp: { '0%': { transform: 'translateY(16px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    background-color: #fafafa;
+    background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
+    background-size: 24px 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+  html.dark ::-webkit-scrollbar-thumb { background: #3f3f46; }
+  html.dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
+
+  .card-enter { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+  .gauge-bar { transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+
+  .samhn-pin-dot { width: 22px; height: 22px; border-radius: 9999px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; color: #fff; }
+  .samhn-pin-dot svg { width: 12px; height: 12px; }
+  .samhn-pin-red .samhn-pin-dot { animation: pin-pulse 2s ease-in-out infinite; }
+  @keyframes pin-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  }
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .hydrograph-img { transition: transform 0.4s ease, filter 0.4s ease; }
+  .hydrograph-img:hover { transform: scale(1.02); filter: brightness(1.02); }
+
+  .critical-flash { animation: critical-flash 1.2s ease-in-out infinite; }
+  @keyframes critical-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  .skeleton { background: linear-gradient(90deg, #f4f4f5 25%, #e4e4e7 50%, #f4f4f5 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  *:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+
+  /* ===== DARK MODE (superficies) ===== */
+  html.dark { color-scheme: dark; }
+  html.dark body { background-color: #09090b; background-image: radial-gradient(#1c1c1f 1px, transparent 1px); }
+  html.dark .bg-white { background-color: #18181b; }
+  html.dark .bg-white\/90 { background-color: rgba(24, 24, 27, 0.92); }
+  html.dark .bg-white\/95 { background-color: rgba(24, 24, 27, 0.95); }
+  html.dark .bg-zinc-50 { background-color: #1f1f23; }
+  html.dark .bg-zinc-50\/50 { background-color: rgba(31, 31, 35, 0.5); }
+  html.dark .bg-zinc-50\/30 { background-color: rgba(31, 31, 35, 0.3); }
+  html.dark .bg-zinc-100 { background-color: #27272a; }
+  html.dark .bg-zinc-900 { background-color: #3f3f46; }
+  html.dark .text-zinc-900 { color: #fafafa; }
+  html.dark .text-zinc-800 { color: #f4f4f5; }
+  html.dark .text-zinc-700 { color: #e4e4e7; }
+  html.dark .text-zinc-600 { color: #d4d4d8; }
+  html.dark .text-zinc-500 { color: #a1a1aa; }
+  html.dark .text-zinc-400 { color: #71717a; }
+  html.dark .border-zinc-200 { border-color: #27272a; }
+  html.dark .border-zinc-100 { border-color: #1f1f23; }
+  html.dark .glass-panel { background: rgba(24, 24, 27, 0.9); }
+  html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12); }
+  html.dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.12); }
+  html.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.12); }
+  html.dark .bg-violet-50 { background-color: rgba(139, 92, 246, 0.14); }
+  html.dark .text-red-800 { color: #fca5a5; }
+  html.dark .text-red-700 { color: #fca5a5; }
+  html.dark .text-emerald-700 { color: #6ee7b7; }
+  html.dark .text-amber-700 { color: #fcd34d; }
+  html.dark .text-amber-800 { color: #fcd34d; }
+  html.dark .text-red-600 { color: #f87171; }
+  html.dark .text-emerald-600 { color: #34d399; }
+  html.dark .text-amber-600 { color: #fbbf24; }
+  html.dark .text-violet-700 { color: #c4b5fd; }
+  html.dark #stations-map { filter: saturate(0.85); }
+  html.dark .leaflet-tile-pane { filter: brightness(0.72) contrast(1.05); }
+  html.dark .hydrograph-img { filter: brightness(0.9); }
+  html.dark .skeleton { background: linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%); background-size: 200% 100%; }
+  html.dark select.sim-select { background-color: #18181b; color: #fafafa; border-color: #3f3f46; }
+  html.dark .samhn-pin-dot { border-color: #18181b; }
+  html.dark .bg-blue-50 { background-color: rgba(59, 130, 246, 0.14); }
+  html.dark .text-blue-700 { color: #93c5fd; }
+  html.dark input, html.dark select, html.dark textarea { background-color: #18181b; color: #fafafa; border-color: #3f3f46; }
+  html.dark ::placeholder { color: #71717a; }
+  html.dark .leaflet-tooltip { background-color: rgba(24, 24, 27, 0.95); color: #f4f4f5; border-color: #3f3f46; }
+  html.dark .leaflet-tooltip-top:before { border-top-color: #3f3f46; }
+  html.dark .leaflet-bar a { background-color: #27272a; color: #e4e4e7; border-color: #3f3f46; }
+  html.dark .leaflet-control-attribution { background: rgba(24, 24, 27, 0.85); color: #a1a1aa; }
+  html.dark .leaflet-control-attribution a { color: #6ee7b7; }
+
+  /* Accesibilidad: reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="text-zinc-600 min-h-screen flex flex-col">
+
+<noscript>
+  <div class="fixed inset-0 z-[100] bg-red-50 flex items-center justify-center p-6 text-center">
+    <div class="max-w-md">
+      <h2 class="text-xl font-bold text-red-800 mb-2">JavaScript requerido</h2>
+      <p class="text-red-700">El Sistema de Alertas Hidrometeorológicas (SAMHN) requiere JavaScript para funcionar. Por favor, habilítelo en su navegador.</p>
+    </div>
+  </div>
+</noscript>
+
+<!-- TOP BAR -->
+<div class="bg-zinc-950 text-zinc-400 text-xs border-b border-zinc-800">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-800">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true"></span>
+        <span class="font-medium text-zinc-200">Sistema Operativo</span>
+      </span>
+      <span class="hidden sm:inline text-zinc-700" aria-hidden="true">|</span>
+      <span class="hidden sm:inline font-mono text-zinc-400">NOAA HADS · Honduras</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <span class="hidden sm:flex items-center gap-1.5 text-zinc-400">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+        Canal CE
+      </span>
+      <span id="live-clock" class="font-mono text-zinc-200 font-medium" aria-live="polite">--:--:--</span>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="glass-panel border-b border-zinc-200 sticky top-0 z-40 transition-all duration-300">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3.5 min-w-0">
+      <div class="relative group flex-shrink-0">
+        <div class="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center shadow-lg shadow-zinc-900/10 group-hover:scale-105 transition-transform duration-300">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+        </div>
+        <div class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" aria-label="Sistema en línea"></div>
+      </div>
+      <div class="min-w-0">
+        <h1 class="font-extrabold text-zinc-900 text-2xl tracking-tight">SAMHN</h1>
+        <p class="text-xs text-zinc-500 font-medium leading-tight truncate">Sistema de Alertas Hidrometeorológicas</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="hidden xl:flex items-center gap-2 px-3 py-2 bg-zinc-100 border border-zinc-200 rounded-lg text-xs">
+        <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span id="station-count" class="text-zinc-700 font-semibold">10 estaciones activas</span>
+      </div>
+
+      <button id="sound-toggle" onclick="toggleSound()" class="p-2.5 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-600 hover:bg-zinc-50 active:scale-95 transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Silenciar o activar sonido de alertas" aria-pressed="true" title="Sonido de alertas">
+        <svg id="sound-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+      </button>
+
+      <button id="theme-toggle" onclick="toggleTheme()" class="p-2.5 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-600 hover:bg-zinc-50 active:scale-95 transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Cambiar tema claro u oscuro" aria-pressed="false" title="Modo oscuro">
+        <svg id="theme-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      </button>
+
+      <div id="gateway-pill" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-100 border border-zinc-200 transition-colors duration-300">
+        <span id="gateway-dot" class="w-2 h-2 rounded-full bg-zinc-400" aria-hidden="true"></span>
+        <span id="gateway-text" class="text-zinc-600">Verificando...</span>
+      </div>
+
+      <button onclick="openAdmin()" class="p-2.5 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 active:scale-95 transition-all duration-200 shadow-sm min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Abrir panel de administración" title="Panel de Administración">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- CRITICAL BANNER -->
+<div id="critical-banner" class="hidden fixed top-0 inset-x-0 z-[80] bg-red-600 text-white shadow-lg" role="alert" aria-live="assertive">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <svg class="w-5 h-5 flex-shrink-0 critical-flash" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <p class="font-bold text-sm truncate">
+        <span id="critical-count">0</span> ESTACIÓN(ES) EN ESTADO CRÍTICO
+        <span id="critical-names" class="hidden sm:inline font-normal opacity-90"></span>
+      </p>
+    </div>
+    <div class="flex items-center gap-3 flex-shrink-0">
+      <button onclick="toggleSound()" class="p-2 rounded-lg hover:bg-white/20 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="Silenciar o activar sonido de alertas" title="Sonido de alertas">
+        <svg id="banner-sound-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+      </button>
+      <button onclick="setFilter('red')" class="px-3 py-1.5 bg-white text-red-700 rounded-lg text-xs font-bold hover:bg-red-50 transition-colors min-h-[44px]">Ver críticas</button>
+      <button onclick="dismissBanner()" class="p-2 rounded-lg hover:bg-white/20 transition-colors min-h-[44px] min-w-[44px]" aria-label="Ocultar banner de críticas">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 flex-1 w-full">
+
+  <!-- STATUS SUMMARY -->
+  <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" aria-label="Resumen de estado de estaciones">
+    <button type="button" data-summary-filter="green" onclick="setFilter('green')" class="text-left bg-white rounded-2xl p-5 border border-zinc-200 shadow-sm relative overflow-hidden group hover:shadow-md hover:ring-2 hover:ring-emerald-500/30 transition-all duration-300 cursor-pointer" aria-pressed="false" aria-label="Filtrar estaciones normales">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500" aria-hidden="true"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="text-xs font-bold text-zinc-600 uppercase tracking-wider">Normal</span>
+        </div>
+        <div id="count-green" class="text-4xl font-bold text-emerald-600 tracking-tight">0</div>
+        <div class="text-xs text-zinc-600 mt-1 font-medium">estaciones operativas</div>
+      </div>
+    </button>
+
+    <button type="button" data-summary-filter="yellow" onclick="setFilter('yellow')" class="text-left bg-white rounded-2xl p-5 border border-zinc-200 shadow-sm relative overflow-hidden group hover:shadow-md hover:ring-2 hover:ring-amber-500/30 transition-all duration-300 cursor-pointer" aria-pressed="false" aria-label="Filtrar estaciones en precaución">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500" aria-hidden="true"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <span class="text-xs font-bold text-zinc-600 uppercase tracking-wider">Precaución</span>
+        </div>
+        <div id="count-yellow" class="text-4xl font-bold text-amber-600 tracking-tight">0</div>
+        <div class="text-xs text-zinc-600 mt-1 font-medium">monitoreo activo</div>
+      </div>
+    </button>
+
+    <button type="button" data-summary-filter="red" onclick="setFilter('red')" class="text-left bg-white rounded-2xl p-5 border border-red-200 shadow-sm relative overflow-hidden group hover:shadow-md hover:ring-2 hover:ring-red-500/30 transition-all duration-300 cursor-pointer" aria-pressed="false" aria-label="Filtrar estaciones críticas">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500" aria-hidden="true"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-3">
+          <svg id="summary-red-icon" class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span class="text-xs font-bold text-red-700 uppercase tracking-wider">Crítico</span>
+        </div>
+        <div id="count-red" class="text-4xl font-bold text-red-600 tracking-tight">0</div>
+        <div class="text-xs text-red-600 mt-1 font-medium">requiere acción inmediata</div>
+      </div>
+    </button>
+  </section>
+
+  <!-- MAP SECTION -->
+  <section class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold text-zinc-900 text-sm tracking-tight">Mapa de Estaciones NOAA HADS</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">Red de monitoreo en tiempo real · Honduras</p>
+      </div>
+      <div class="flex items-center gap-4 text-xs font-medium">
+        <span class="flex items-center gap-1.5"><svg class="w-2.5 h-2.5 text-emerald-500" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg>Normal</span>
+        <span class="flex items-center gap-1.5"><svg class="w-2.5 h-2.5 text-amber-500" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 10L10 3H2L6 10Z" fill="currentColor"/></svg>Precaución</span>
+        <span class="flex items-center gap-1.5"><svg class="w-2.5 h-2.5 text-red-500" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" fill="currentColor"/></svg>Crítico</span>
+        <span class="flex items-center gap-1.5"><svg class="w-2.5 h-2.5 text-zinc-400" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg>Obsoleto</span>
+      </div>
+    </div>
+    <div class="relative z-0 bg-zinc-100">
+      <div id="stations-map" class="w-full aspect-[16/9] sm:aspect-[21/9]" role="application" aria-label="Mapa geográfico de Honduras con estaciones NOAA HADS"></div>
+    </div>
+  </section>
+
+  <!-- FILTERS -->
+  <section class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+    <div class="flex items-center gap-1 p-1 bg-zinc-100 border border-zinc-200 rounded-xl overflow-x-auto max-w-full" role="group" aria-label="Filtrar estaciones por estado">
+      <button data-filter="all" aria-pressed="true" class="filter-btn px-4 py-2.5 rounded-lg text-xs font-semibold bg-zinc-900 text-white shadow-sm transition-all duration-200 whitespace-nowrap min-h-[44px]">Todas (0)</button>
+      <button data-filter="green" aria-pressed="false" class="filter-btn px-4 py-2.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap min-h-[44px]">Normal</button>
+      <button data-filter="yellow" aria-pressed="false" class="filter-btn px-4 py-2.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap min-h-[44px]">Precaución</button>
+      <button data-filter="red" aria-pressed="false" class="filter-btn px-4 py-2.5 rounded-lg text-xs font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap min-h-[44px]">Crítico</button>
+    </div>
+    <div class="flex-1"></div>
+    <div class="flex items-center gap-2">
+      <span id="last-updated" class="text-xs font-mono text-zinc-500 hidden sm:inline">—</span>
+      <button id="refresh-btn" onclick="refreshStations()" class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 active:scale-95 transition-all duration-200 whitespace-nowrap shadow-sm min-h-[44px]" aria-label="Actualizar datos de estaciones">
+        <svg id="refresh-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Actualizar datos
+      </button>
+    </div>
+  </section>
+
+  <!-- STATIONS GRID -->
+  <section id="stations-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10" role="list" aria-label="Lista de estaciones"></section>
+
+  <!-- HYDROGRAPHS SECTION -->
+  <section class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden mb-10">
+    <div class="px-6 py-4 border-b border-zinc-100">
+      <h2 class="font-semibold text-zinc-900 text-sm tracking-tight flex items-center gap-2">
+        <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+        Gráficas HG — River Stage (FT)
+      </h2>
+      <p class="text-xs text-zinc-500 mt-0.5">Datos NOAA HADS · Decode Data · Columna VB · GRAPH · HG Height</p>
+    </div>
+    <div class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="hydrographs-grid"></div>
+    </div>
+  </section>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+    <!-- CONTACTS -->
+    <section class="lg:col-span-1 bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-zinc-100">
+        <h2 class="font-semibold text-zinc-900 text-sm tracking-tight flex items-center gap-2">
+          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+          Contactos de Emergencia
+        </h2>
+        <p class="text-xs text-zinc-500 mt-0.5" id="contacts-subtitle">Receptores de alerta SMS por sector</p>
+      </div>
+      <div class="px-6 py-4 border-b border-zinc-100 bg-zinc-50/50">
+        <form id="contact-form" onsubmit="return addContact(event)" class="space-y-3">
+          <div>
+            <label for="contact-name" class="block text-xs font-semibold text-zinc-700 mb-1">Nombre</label>
+            <input id="contact-name" type="text" required maxlength="40" placeholder="Ej. María López" autocomplete="name" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-h-[44px]" />
+          </div>
+          <div>
+            <label for="contact-phone" class="block text-xs font-semibold text-zinc-700 mb-1">Teléfono</label>
+            <input id="contact-phone" type="tel" required maxlength="20" placeholder="+50400000000" pattern="^[+0-9][0-9 ()-]{6,19}$" title="Formato: +504 1234 5678" autocomplete="tel" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-h-[44px]" />
+          </div>
+          <div>
+            <label for="contact-sector" class="block text-xs font-semibold text-zinc-700 mb-1">Sector / río cercano</label>
+            <select id="contact-sector" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 min-h-[44px]"></select>
+          </div>
+          <button type="submit" class="w-full px-4 py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 active:scale-95 text-white text-xs font-bold transition-all shadow-sm min-h-[44px]">Añadir contacto</button>
+        </form>
+      </div>
+      <div id="contacts-list" class="divide-y divide-zinc-100"></div>
+      <div id="contacts-empty" class="px-6 py-8 text-center text-sm text-zinc-400 hidden">Sin contactos todavía. Añade receptores por sector.</div>
+    </section>
+
+    <!-- EVENT LOG -->
+    <section class="lg:col-span-2 bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden flex flex-col">
+      <div class="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold text-zinc-900 text-sm tracking-tight flex items-center gap-2">
+            <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+            Registro de Eventos
+          </h2>
+          <p class="text-xs text-zinc-500 mt-0.5">Historial de alertas y cambios de estado</p>
+        </div>
+        <button onclick="clearLog()" class="text-xs text-zinc-600 hover:text-red-600 font-medium transition-colors px-3 py-2 rounded-lg hover:bg-red-50 min-h-[44px]" aria-label="Limpiar registro de eventos">Limpiar</button>
+      </div>
+      <div id="event-log" class="flex-1 overflow-y-auto max-h-96 p-6" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <!-- SIMULATOR -->
+  <section class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden mb-10">
+    <div class="px-6 py-4 border-b border-zinc-100">
+      <h2 class="font-semibold text-zinc-900 text-sm tracking-tight flex items-center gap-2">
+        <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Simulador de Escenarios
+      </h2>
+      <p class="text-xs text-zinc-500 mt-0.5">Prueba del sistema: subidas de río, fallos y reset</p>
+    </div>
+    <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-3">Estación objetivo</div>
+        <select id="sim-station" class="sim-select w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-800 min-h-[44px]">
+          <option value="">Selecciona una estación</option>
+        </select>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200 flex flex-col">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-3">Subida del río</div>
+        <button onclick="simulateRise()" class="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold rounded-lg transition-all shadow-sm min-h-[44px]">Simular subida → crítico</button>
+        <p class="text-xs text-zinc-500 mt-2">Precaución, luego crítico a los 4s (envía SMS)</p>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200 flex flex-col">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-3">Estación caída</div>
+        <button onclick="simulateStationDown()" class="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-900 active:scale-95 text-white text-xs font-bold rounded-lg transition-all shadow-sm min-h-[44px]">Simular datos obsoletos</button>
+        <p class="text-xs text-zinc-500 mt-2">Marca la estación sin transmisión por 3 días</p>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200 flex flex-col">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-3">Gateway</div>
+        <button id="sim-gateway-btn" onclick="toggleGatewaySim()" class="px-4 py-2.5 bg-zinc-100 border border-zinc-300 hover:border-zinc-400 active:scale-95 text-zinc-700 text-xs font-bold rounded-lg transition-all min-h-[44px]">Simular teléfono offline</button>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200 flex flex-col">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-3">Reset global</div>
+        <button id="reset-btn" onclick="confirmReset()" class="px-4 py-2.5 bg-white border border-red-300 text-red-700 hover:bg-red-600 hover:text-white hover:border-red-600 active:scale-95 text-xs font-bold rounded-lg transition-all min-h-[44px]">Restablecer todo</button>
+        <p class="text-xs text-zinc-500 mt-2">Estaciones a verde, limpia log y Redis</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SMS QUEUE STATUS -->
+  <section class="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-zinc-100">
+      <h2 class="font-semibold text-zinc-900 text-sm tracking-tight flex items-center gap-2">
+        <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+        Estado del Gateway SMS
+      </h2>
+      <p class="text-xs text-zinc-500 mt-0.5">NOVA SMS Cloud · Vercel + Redis</p>
+    </div>
+    <div class="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">Teléfono Android</div>
+        <div class="flex items-center gap-2">
+          <span id="queue-phone-dot" class="w-2.5 h-2.5 rounded-full bg-zinc-400" aria-hidden="true"></span>
+          <span id="queue-phone-text" class="text-sm font-bold text-zinc-900">Verificando...</span>
+        </div>
+        <div id="queue-last-heartbeat" class="text-xs text-zinc-500 mt-2 font-mono">—</div>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">Mensajes en cola</div>
+        <div id="queue-pending" class="text-3xl font-bold text-zinc-900 tracking-tight">0</div>
+        <div class="text-xs text-zinc-500 mt-1">esperando al teléfono</div>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+        <div class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">Última entrega</div>
+        <div id="queue-last-delivery" class="text-sm font-bold text-zinc-900">—</div>
+        <div class="text-xs text-zinc-500 mt-1">resultado del envío</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="max-w-7xl mx-auto px-4 sm:px-6 pb-10 mt-2">
+  <p class="text-center text-xs text-zinc-500 italic leading-relaxed">«Cuando pases por las aguas, yo estaré contigo; y si por los ríos, no te anegarán.» — Isaías 43:2 (RVR1960)</p>
+</footer>
+
+<!-- ADMIN MODAL -->
+<div id="admin-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+  <div class="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm transition-opacity" onclick="closeAdmin()"></div>
+  <div id="admin-modal-panel" class="absolute inset-x-0 bottom-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl bg-white rounded-t-3xl md:rounded-2xl shadow-2xl border border-zinc-200 max-h-[85vh] overflow-hidden flex flex-col animate-slide-up">
+    <div class="md:hidden pt-3 pb-0 flex justify-center" aria-hidden="true">
+      <div class="w-12 h-1.5 rounded-full bg-zinc-300 cursor-pointer"></div>
+    </div>
+    <div class="sticky top-0 bg-white/90 backdrop-blur-md border-b border-zinc-200 px-6 py-4 flex items-center justify-between z-10">
+      <div>
+        <h3 id="admin-modal-title" class="font-semibold text-zinc-900 tracking-tight">Panel de Administración</h3>
+        <p class="text-xs text-zinc-600 mt-0.5">Simula cambios de estado en la base de datos</p>
+      </div>
+      <button onclick="closeAdmin()" class="p-2.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 transition-colors min-h-[44px]" aria-label="Cerrar panel de administración">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-3 overflow-y-auto flex-1" id="admin-stations-list"></div>
+    <div class="p-6 border-t border-zinc-200 bg-zinc-50/50">
+      <div class="flex items-start gap-3 text-xs text-zinc-600">
+        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <p class="font-semibold text-zinc-900">Gateway Android <span id="admin-gateway-state" class="font-normal text-zinc-600">verificando...</span></p>
+          <p class="mt-1 text-zinc-600 leading-relaxed">Los SMS se envían vía NOVA SMS Cloud (Vercel + Redis). El teléfono recibe mensajes desde cualquier red celular.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION MODAL FOR SMS -->
+<div id="confirm-modal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+  <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm transition-opacity" onclick="closeConfirmModal()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-zinc-200 p-6 animate-slide-up">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+      <div>
+        <h3 id="confirm-modal-title" class="font-semibold text-zinc-900 text-base">Confirmar Envío de Alerta</h3>
+        <p class="text-xs text-zinc-500 mt-0.5" id="confirm-modal-desc">Esta acción enviará un SMS crítico a todos los contactos registrados.</p>
+      </div>
+    </div>
+    <div id="confirm-box" class="bg-red-50 border border-red-100 rounded-xl p-4 mb-4">
+      <p id="confirm-box-name" class="text-sm text-red-800 font-medium">Estación: <span id="confirm-station-name" class="font-bold"></span></p>
+      <p id="confirm-box-note" class="text-xs text-red-700 mt-1">Se notificará a <span id="confirm-contact-count" class="font-bold"></span> contacto(s) de inmediato.</p>
+      <p id="confirm-cooldown-note" class="text-xs text-red-700 mt-1 hidden">Ya se envió una alerta recientemente para esta estación.</p>
+    </div>
+    <div class="flex gap-3">
+      <button onclick="closeConfirmModal()" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors min-h-[44px]">Cancelar</button>
+      <button id="confirm-send-btn" onclick="executeConfirmedAlert()" class="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 active:scale-95 transition-all shadow-sm min-h-[44px]">Confirmar y Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATION DETAIL MODAL -->
+<div id="station-modal" class="fixed inset-0 z-[65] hidden" role="dialog" aria-modal="true" aria-labelledby="station-modal-title">
+  <div class="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm transition-opacity" onclick="closeStationModal()"></div>
+  <div id="station-modal-panel" class="absolute inset-x-0 bottom-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl bg-white rounded-t-3xl md:rounded-2xl shadow-2xl border border-zinc-200 max-h-[85vh] overflow-hidden flex flex-col animate-slide-up">
+    <div class="md:hidden pt-3 pb-0 flex justify-center" aria-hidden="true">
+      <div class="w-12 h-1.5 rounded-full bg-zinc-300 cursor-pointer"></div>
+    </div>
+    <div class="sticky top-0 bg-white/90 backdrop-blur-md border-b border-zinc-200 px-6 py-4 flex items-center justify-between z-10">
+      <div class="min-w-0 pr-4">
+        <h3 id="station-modal-title" class="font-semibold text-zinc-900 tracking-tight truncate">Detalle de estación</h3>
+        <div class="flex items-center gap-2 mt-0.5">
+          <span id="station-modal-id" class="font-mono text-xs text-zinc-500">—</span>
+          <span id="station-modal-badge" class="px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide"></span>
+        </div>
+      </div>
+      <button onclick="closeStationModal()" class="p-2.5 rounded-lg hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900 transition-colors min-h-[44px]" aria-label="Cerrar detalle de estación">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="overflow-y-auto flex-1" id="station-modal-body"></div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[70] space-y-3 pointer-events-none flex flex-col items-end" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+// ============ DATA ============
+const STATIONS_DB = [
+  { id: "SFOH3", name: "RIO ULUA AT SAN FRANCISCO DE OJUERAS", location: "San Francisco de Ojueras", lat: 14.7683, lng: -88.1758, owner: "CENAOS/SAMHN", channel: "CE", level: 2.35, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000140" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/105f3b987-afe5-4417-84ab-5511e08e7cac.png" },
+  { id: "CHIH3", name: "RIO ULUA NEAR CHINDA", location: "Chinda, Santa Bárbara", lat: 15.1178, lng: -88.1989, owner: "CENAOS/SAMHN", channel: "CE", level: 2.85, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000150" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/19cca8644-98f4-4229-9633-8713359be075.png" },
+  { id: "SANH3", name: "RIO ULUA AT SANTIAGO", location: "Santiago, Yoro", lat: 15.2969, lng: -87.9281, owner: "CENAOS/SAMHN", channel: "CE", level: 3.65, status: "yellow", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/15.0", coeff: "0.01/0.01" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000200" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/169633c11-63b0-44f4-971a-4d53f9ff9c8b.png" },
+  { id: "RCHH3", name: "RIO CHAMELECON EN EL TABLON", location: "El Tablón, Santa Bárbara", lat: 15.3197, lng: -88.2072, owner: "CENAOS/SAMHN", channel: "CE", level: 2.55, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/0.0", coeff: "0.0/0.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000210" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1ac30cf18-8460-4921-af1b-1247af0a3c25.png" },
+  { id: "LAVH3", name: "LA VEGONA", location: "La Vegona, Santa Bárbara", lat: 15.2117, lng: -88.5378, owner: "CENAOS/SAMHN", channel: "CE", level: 2.45, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.001/-9.0" }, PR: { interval: "60.0/0.0", coeff: "0.001/0.001" }, HG: { interval: "15.0/-9.0", coeff: "0.01/-9.0" } }, transmission: { interval: 60, init: "000220" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1820a4dd6-c301-4662-98f8-86d9ffbc892a.png" },
+  { id: "POSH3", name: "RIO JICATUYO AT SANTIAGO DE POSTA", location: "Santiago de Posta, La Paz", lat: 14.9292, lng: -88.6114, owner: "CENAOS/SAMHN", channel: "CE", level: 3.85, status: "yellow", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000300" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/11125f75e-7dc9-4a45-bb7d-76049d8c1c3b.png" },
+  { id: "EMPH3", name: "RIO LEAN EN EL EMPALME", location: "El Empalme, Atlántida", lat: 15.6361, lng: -87.3286, owner: "CENAOS/SAMHN", channel: "CE", level: 2.15, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "001630" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/17701aa96-272a-4e39-bbb4-c56f135bb4ef.png" },
+  { id: "MANH3", name: "RIO CANGREJAL AT LAS MANGAS", location: "Las Mangas, Atlántida", lat: 15.7247, lng: -86.7256, owner: "CENAOS/SAMHN", channel: "CE", level: 2.05, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 240, init: "021630" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1bdebd7d7-4dba-4bd9-9f2c-deaed1af203d.png" },
+  { id: "PUDH3", name: "PUENTE LA DEMOCRACIA", location: "La Democracia, Yoro", lat: 15.4039, lng: -87.8200, owner: "CENAOS/SAMHN", channel: "CE", level: 10.85, status: "red", lastAlertSentAt: null, peCodes: { PP: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, PR: { interval: "60.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/-9.0", coeff: "0.1/-9.0" } }, transmission: { interval: 60, init: "004918" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/10a24f874-abb6-414f-9059-9dcc28a37a1e.png" },
+  { id: "SPSH3", name: "SAN PEDRO SULA", location: "San Pedro Sula, Cortés", lat: 15.5078, lng: -88.0661, owner: "CENAOS/SAMHN", channel: "CE", level: 2.65, status: "green", lastAlertSentAt: null, peCodes: { TN: { interval: "60.0/-9.0", coeff: "0.01/-9.0" }, TX: { interval: "60.0/0.0", coeff: "1.0/0.01" }, PP: { interval: "15.0/15.0", coeff: "1.0/0.01" }, PR: { interval: "1440.0/-9.0", coeff: "1.0/-9.0" } }, transmission: { interval: 60, init: "000540" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1b2bb2f6b-69a7-4827-938d-336e6ef3bd4e.png" }
+];
+
+const SECTORS = [
+  { id: 'ulua', name: 'Cuenca Ulúa', stations: ['SFOH3', 'CHIH3', 'SANH3'] },
+  { id: 'chamelecon', name: 'Cuenca Chamelecón', stations: ['RCHH3', 'LAVH3'] },
+  { id: 'atlantida', name: 'Atlántida (Leán / Cangrejal)', stations: ['EMPH3', 'MANH3'] },
+  { id: 'paz', name: 'La Paz (Jicatuyo)', stations: ['POSH3'] },
+  { id: 'yoro', name: 'Yoro (Puente La Democracia)', stations: ['PUDH3'] },
+  { id: 'cortes', name: 'Cortés (San Pedro Sula)', stations: ['SPSH3'] }
+];
+const DEFAULT_CONTACTS = [ { id: 1, name: "Sami", phone: "+50433154594", sector: "cortes" } ];
+let CONTACTS_DB = [];
+function sectorById(id) { return SECTORS.find(function (s) { return s.id === id; }); }
+function sectorForStation(st) { return SECTORS.find(function (s) { return s.stations.indexOf(st.id) !== -1; }); }
+function sectorContacts(sid) { return CONTACTS_DB.filter(function (c) { return c.sector === sid; }); }
+function contactsForStation(st) {
+  const sc = sectorForStation(st);
+  return sc ? sectorContacts(sc.id) : [];
+}
+const MAX_LEVEL = 12;
+const SMS_API_URL = "/api/send-sms";
+const SMS_COOLDOWN_MS = 10 * 60 * 1000;
+const STALE_FACTOR = 3;
+
+let currentFilter = 'all';
+let eventLog = [];
+let pendingAlertStation = null;
+let sendingSms = false;
+let gatewaySimOffline = false;
+let soundEnabled = true;
+try { soundEnabled = localStorage.getItem('samhn_sound') !== 'off'; } catch (e) {}
+let audioCtx = null;
+let bannerDismissed = false;
+let prevCriticalCount = 0;
+let simRiseTimer = null;
+let resetArmed = false;
+let resetArmTimer = null;
+
+// ============ UI CONFIG ============
+const statusConfig = {
+  green: { label: 'NORMAL', badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20', dot: 'bg-emerald-500', accent: 'bg-emerald-500', icon: '<circle cx="6" cy="6" r="4" fill="currentColor"/>' },
+  yellow: { label: 'PRECAUCIÓN', badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20', dot: 'bg-amber-500', accent: 'bg-amber-500', icon: '<path d="M6 10L10 3H2L6 10Z" fill="currentColor"/><rect x="5" y="7" width="2" height="2" fill="white"/>' },
+  red: { label: 'CRÍTICO', badge: 'bg-red-50 text-red-700 ring-1 ring-red-600/20', dot: 'bg-red-500', accent: 'bg-red-500', icon: '<rect x="2" y="2" width="8" height="8" fill="currentColor"/>' }
+};
+const STALE_BADGE = { label: 'OBSOLETO', badge: 'bg-zinc-100 text-zinc-600 ring-1 ring-zinc-400/30', dot: 'bg-zinc-400' };
+const SIM_BADGE = { label: 'SIM', badge: 'bg-violet-50 text-violet-700 ring-1 ring-violet-600/20', dot: 'bg-violet-500' };
+const PE_CODES_INFO = {
+  PC: 'Precipitación acumulada',
+  PR: 'Precipitación total',
+  PP: 'Precipitación pasada',
+  HG: 'Altura del río',
+  TN: 'Temperatura mínima',
+  TX: 'Temperatura máxima'
+};
+const LOG_ICONS = {
+  sms: '<svg class="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>',
+  status: '<svg class="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>',
+  alert: '<svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
+  info: '<svg class="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+};
+
+function formatTimeAgo(date) {
+  if (!date) return 'Nunca';
+  const diff = (Date.now() - new Date(date).getTime()) / 1000;
+  if (diff < 0) return 'Ahora';
+  if (diff < 60) return `Hace ${Math.floor(diff)}s`;
+  if (diff < 3600) return `Hace ${Math.floor(diff/60)} min`;
+  if (diff < 86400) return `Hace ${Math.floor(diff/3600)} h`;
+  return `Hace ${Math.floor(diff/86400)} d`;
+}
+
+function getLevelPercent(level) { return Math.min((level / MAX_LEVEL) * 100, 100); }
+
+function stationAge(station) {
+  if (!station.lastTransmissionAt) return Number.MAX_SAFE_INTEGER;
+  return Date.now() - new Date(station.lastTransmissionAt).getTime();
+}
+function isStale(station) {
+  return stationAge(station) > (station.transmission.interval * 60 * 1000) * STALE_FACTOR;
+}
+function normalizeLevel(s) {
+  if (s.status === 'green') s.level = Math.min(Math.max(s.level || 1.5, 1), 2.99);
+  else if (s.status === 'yellow') s.level = Math.min(Math.max(s.level || 3.2, 3), 3.99);
+  else s.level = Math.max(s.level || 4.5, 4);
+}
+function filteredStations() {
+  return currentFilter === 'all' ? STATIONS_DB : STATIONS_DB.filter(s => s.status === currentFilter);
+}
+
+// ============ THEME & SOUND ============
+function toggleTheme() {
+  const dark = document.documentElement.classList.toggle('dark');
+  try { localStorage.setItem('samhn_theme', dark ? 'dark' : 'light'); } catch (e) {}
+  document.getElementById('theme-toggle').setAttribute('aria-pressed', String(dark));
+  document.getElementById('theme-icon').innerHTML = dark
+    ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>';
+}
+function applySoundUI() {
+  document.getElementById('sound-toggle').setAttribute('aria-pressed', String(soundEnabled));
+  const icon = soundEnabled
+    ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>'
+    : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3l18 18M10.584 10.584a2 2 0 012.828 2.828M15.536 8.464a5 5 0 010 7.072M6.343 6.343a8 8 0 000 11.314M18.364 5.636a9 9 0 010 12.728"/>';
+  document.getElementById('sound-icon').innerHTML = icon;
+  const bannerIcon = document.getElementById('banner-sound-icon');
+  if (bannerIcon) bannerIcon.innerHTML = icon;
+}
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  try { localStorage.setItem('samhn_sound', soundEnabled ? 'on' : 'off'); } catch (e) {}
+  applySoundUI();
+}
+function playAlertSound() {
+  if (!soundEnabled) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+    const now = audioCtx.currentTime;
+    [[880, 0], [1174, 0.18]].forEach(function (pair) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = pair[0];
+      gain.gain.setValueAtTime(0.0001, now + pair[1]);
+      gain.gain.exponentialRampToValueAtTime(0.12, now + pair[1] + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + pair[1] + 0.16);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + pair[1]);
+      osc.stop(now + pair[1] + 0.18);
+    });
+  } catch (e) {}
+}
+
+// ============ TOAST ============
+function showToast(message, type, duration) {
+  type = type || 'info';
+  duration = duration || 4000;
+  const container = document.getElementById('toast-container');
+  const styles = {
+    success: 'bg-emerald-600 text-white ring-1 ring-emerald-500/20',
+    error: 'bg-red-600 text-white ring-1 ring-red-500/20',
+    info: 'bg-zinc-900 text-white ring-1 ring-zinc-800',
+    warning: 'bg-amber-600 text-white ring-1 ring-amber-500/20'
+  };
+  const icons = {
+    success: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    error: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    info: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    warning: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>'
+  };
+  const toast = document.createElement('div');
+  toast.className = 'pointer-events-auto ' + styles[type] + ' px-4 py-3 rounded-xl shadow-lg flex items-start gap-3 w-full max-w-sm animate-slide-up backdrop-blur-md';
+  toast.innerHTML = '<span class="flex-shrink-0 mt-0.5">' + icons[type] + '</span><div class="flex-1 text-sm font-medium leading-snug">' + message + '</div><button class="toast-close flex-shrink-0 p-1 rounded-lg hover:bg-white/20 transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center" aria-label="Cerrar notificación"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+  container.appendChild(toast);
+  let removed = false;
+  function dismiss() {
+    if (removed) return;
+    removed = true;
+    clearTimeout(timer);
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(function () { toast.remove(); }, 300);
+  }
+  const timer = setTimeout(dismiss, duration);
+  toast.querySelector('.toast-close').addEventListener('click', dismiss);
+}
+
+// ============ EVENT LOG ============
+function addLog(type, title, detail) {
+  eventLog.unshift({ type: type, title: title, detail: detail, time: new Date() });
+  if (eventLog.length > 50) eventLog.pop();
+  renderLog();
+}
+function renderLog() {
+  const log = document.getElementById('event-log');
+  if (eventLog.length === 0) {
+    log.innerHTML = '<div class="p-8 text-center text-sm text-zinc-500 flex flex-col items-center gap-2"><svg class="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Sin eventos registrados</div>';
+    return;
+  }
+  log.innerHTML = '<div class="relative pl-4 border-l border-zinc-200 ml-3 space-y-4">' + eventLog.map(function (e) {
+    return '<div class="relative group">' +
+      '<div class="absolute -left-[21px] top-1.5 w-3 h-3 rounded-full bg-white border-2 border-zinc-300 group-hover:border-zinc-400 transition-colors" aria-hidden="true"></div>' +
+      '<div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200 hover:border-zinc-300 hover:shadow-sm transition-all duration-200">' +
+        '<div class="flex items-start justify-between gap-3">' +
+          '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2 mb-1">' +
+              '<span class="flex-shrink-0">' + (LOG_ICONS[e.type] || LOG_ICONS.info) + '</span>' +
+              '<p class="text-sm font-semibold text-zinc-900">' + e.title + '</p>' +
+            '</div>' +
+            '<p class="text-xs text-zinc-600 leading-relaxed pl-6">' + e.detail + '</p>' +
+          '</div>' +
+          '<span class="text-xs text-zinc-500 flex-shrink-0 font-mono bg-white px-2 py-1 rounded-md border border-zinc-200">' + formatTimeAgo(e.time) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') + '</div>';
+}
+function clearLog() { eventLog = []; renderLog(); }
+// ============ SMS & STATE LOGIC ============
+function smsSegments(message) {
+  const ucs2 = /[^\u0000-\u007F]/.test(message);
+  const per = ucs2 ? 67 : 153;
+  return Math.max(1, Math.ceil(message.length / per));
+}
+function buildAlertMessage(station) {
+  const label = (statusConfig[station.status] || {}).label || 'CRÍTICO';
+  const msg = `ALERTA SAMHN: ${station.name} nivel ${label} ${station.level.toFixed(2)}m. Tome precauciones.`;
+  return { msg: msg, segments: smsSegments(msg) };
+}
+function canSendAlert(station) {
+  if (!station.lastAlertSentAt) return true;
+  return (Date.now() - new Date(station.lastAlertSentAt).getTime()) >= SMS_COOLDOWN_MS;
+}
+function cooldownRemaining(station) {
+  if (!station.lastAlertSentAt) return 0;
+  return Math.max(0, SMS_COOLDOWN_MS - (Date.now() - new Date(station.lastAlertSentAt).getTime()));
+}
+async function fetchWithTimeout(url, options, ms) {
+  ms = ms || 8000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(function () { ctrl.abort(); }, ms);
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: ctrl.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function sendSMS(phone, message) {
+  const resp = await fetchWithTimeout(SMS_API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: phone, message: message }) });
+  return await resp.json();
+}
+async function sendMassSMS(station) {
+  const targets = contactsForStation(station);
+  const sc = sectorForStation(station);
+  if (targets.length === 0) {
+    addLog('sms', 'SMS omitido: sin contactos en el sector', `${station.id} · ${sc ? sc.name : 'sector desconocido'}`);
+    showToast(`Sin contactos en ${sc ? sc.name : 'el sector'} — no se envió SMS`, 'warning', 4000);
+    return { sent: false, skipped: true };
+  }
+  if (!canSendAlert(station)) {
+    const mins = Math.ceil(cooldownRemaining(station) / 60000);
+    addLog('sms', 'Alerta omitida (cooldown)', `${station.id} · próximo envío permitido en ~${mins} min`);
+    showToast(`Ya se alertó a ${station.id} recientemente. Próximo envío en ~${mins} min`, 'warning', 4000);
+    return { sent: false, skipped: true };
+  }
+  addLog('sms', `Enviando SMS a ${targets.length} contacto(s) del sector ${sc ? sc.name : ''}`, `Estación: ${station.name}`);
+  showToast('Enviando SMS vía NOVA Cloud...', 'info', 1500);
+  let ok = 0, fail = 0, ids = [];
+  const built = buildAlertMessage(station);
+  for (const c of targets) {
+    try {
+      const r = await sendSMS(c.phone, built.msg);
+      if (r.success) { ok++; ids.push(r.id); } else fail++;
+    } catch (e) { fail++; }
+  }
+  if (ok > 0) station.lastAlertSentAt = new Date().toISOString();
+  addLog('sms', `${ok} encolados, ${fail} fallaron`, `Estación: ${station.id} · ~${built.segments} segmento(s)`);
+  showToast(`${ok} en cola / ${fail} ERROR`, fail > 0 ? 'warning' : 'success', 4000);
+  saveStationState();
+  if (ids.length > 0) watchDelivery(ids[0], station.id);
+  return { sent: true, ok: ok, fail: fail };
+}
+
+function promptAlert(stationId) {
+  const s = STATIONS_DB.find(x => x.id === stationId);
+  if (!s) return;
+  pendingAlertStation = s;
+  document.getElementById('confirm-station-name').textContent = s.name;
+  const targets = contactsForStation(s);
+  const sc = sectorForStation(s);
+  document.getElementById('confirm-contact-count').textContent = targets.length;
+  const desc = document.getElementById('confirm-modal-desc');
+  const box = document.getElementById('confirm-box');
+  const boxName = document.getElementById('confirm-box-name');
+  const boxNote = document.getElementById('confirm-box-note');
+  const cfg = statusConfig[s.status];
+  desc.textContent = `Esta acción enviará un SMS de ${cfg.label} a ${targets.length} contacto(s) del sector ${sc ? sc.name : 'desconocido'}.`;
+  const tints = {
+    green: ['bg-emerald-50 border-emerald-100 text-emerald-800', 'text-emerald-700'],
+    yellow: ['bg-amber-50 border-amber-100 text-amber-800', 'text-amber-700'],
+    red: ['bg-red-50 border-red-100 text-red-800', 'text-red-700']
+  };
+  box.className = 'rounded-xl p-4 mb-4 ' + tints[s.status][0];
+  boxName.className = 'text-sm font-medium ' + tints[s.status][0].split(' ').filter(c => c.startsWith('text-'))[0];
+  boxNote.className = 'text-xs mt-1 ' + tints[s.status][1];
+  const note = document.getElementById('confirm-cooldown-note');
+  note.className = 'text-xs mt-1 hidden ' + tints[s.status][1];
+  if (canSendAlert(s)) {
+    note.classList.add('hidden');
+  } else {
+    note.innerHTML = '<svg class="w-4 h-4 flex-shrink-0 inline-block align-middle mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>Alerta enviada recientemente. Cooldown: ' + Math.ceil(cooldownRemaining(s) / 60000) + ' min restantes.';
+    note.classList.remove('hidden');
+  }
+  openModal('confirm-modal');
+}
+function closeConfirmModal() {
+  closeModal('confirm-modal');
+  pendingAlertStation = null;
+}
+async function executeConfirmedAlert() {
+  if (!pendingAlertStation || sendingSms) return;
+  sendingSms = true;
+  const btn = document.getElementById('confirm-send-btn');
+  btn.disabled = true;
+  btn.classList.add('opacity-60', 'pointer-events-none');
+  const station = pendingAlertStation;
+  closeConfirmModal();
+  pendingAlertStation = null;
+  const targets = contactsForStation(station);
+  const sc = sectorForStation(station);
+  if (targets.length === 0) {
+    addLog('alert', `ALERTA MANUAL — ${station.id} sin contactos en sector`, `${sc ? sc.name : 'sector desconocido'}`);
+    showToast(`Sin contactos en ${sc ? sc.name : 'el sector'} — no se envió SMS`, 'warning', 4000);
+    sendingSms = false;
+    return;
+  }
+  addLog('alert', `ALERTA MANUAL INICIADA — ${station.id}`, `Enviando a ${targets.length} contactos del sector ${sc ? sc.name : ''}.`);
+  showToast('Enviando alerta manual...', 'warning', 2500);
+  let ok = 0, fail = 0, ids = [];
+  const built = buildAlertMessage(station);
+  for (const c of targets) {
+    try {
+      const r = await sendSMS(c.phone, built.msg);
+      if (r.success) { ok++; ids.push(r.id); } else fail++;
+    } catch (e) { fail++; }
+  }
+  if (ok > 0) station.lastAlertSentAt = new Date().toISOString();
+  addLog('sms', `Alerta manual: ${ok} encolados, ${fail} fallaron`, `${station.id} · ${targets.length} contacto(s) del sector ${sc ? sc.name : ''}`);
+  showToast(`${ok} en cola / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
+  renderStations();
+  saveStationState();
+  if (ids.length > 0) watchDelivery(ids[0], station.id);
+  sendingSms = false;
+}
+
+async function updateStationStatus(stationId, newStatus, opts) {
+  opts = opts || {};
+  const station = STATIONS_DB.find(s => s.id === stationId);
+  if (!station) return;
+  const oldStatus = station.status;
+  if (oldStatus === newStatus) return;
+  station.status = newStatus;
+  normalizeLevel(station);
+  if (opts.simulated !== undefined) station._simulated = !!opts.simulated;
+  const simTag = station._simulated ? ' (SIM)' : '';
+  addLog('status', `${stationId}: ${oldStatus.toUpperCase()} → ${newStatus.toUpperCase()}${simTag}`, `Nivel: ${station.level.toFixed(2)} FT`);
+  saveStationState();
+  if (newStatus === 'red' && oldStatus !== 'red') {
+    playAlertSound();
+    updateCriticalBanner();
+    await sendMassSMS(station);
+  } else {
+    updateCriticalBanner();
+  }
+  renderStations();
+  renderAdmin();
+  renderMapPins();
+  renderHydrographs();
+  showToast(`${station.id} actualizado a ${statusConfig[newStatus].label}${simTag}`, 'success', 2500);
+}
+
+async function loadStationState(quiet) {
+  try {
+    const resp = await fetchWithTimeout('/api/stations');
+    const data = await resp.json();
+    if (data.stations) {
+      for (const [id, state] of Object.entries(data.stations)) {
+        const s = STATIONS_DB.find(x => x.id === id);
+        if (s) {
+          s.status = state.status || s.status;
+          if (state.level != null) { const lv = Number(state.level); if (!isNaN(lv)) s.level = lv; }
+          if (state.lastAlertSentAt != null) s.lastAlertSentAt = state.lastAlertSentAt;
+          if (state.lastTransmissionAt != null) s.lastTransmissionAt = state.lastTransmissionAt;
+          s._simulated = !!state._simulated;
+        }
+      }
+      renderStations(); renderHydrographs(); renderAdmin(); renderMapPins();
+      if (!quiet) addLog('info', 'Estado cargado desde Redis', `${Object.keys(data.stations).length} estaciones`);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    if (!quiet) addLog('info', 'Estado local (Redis no responde)', e.message);
+    return false;
+  }
+}
+async function saveStationState() {
+  const state = {};
+  for (const s of STATIONS_DB) state[s.id] = { status: s.status, level: s.level, lastAlertSentAt: s.lastAlertSentAt, lastTransmissionAt: s.lastTransmissionAt, _simulated: !!s._simulated };
+  try { await fetchWithTimeout('/api/stations', { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stations: state }) }); } catch (e) {}
+}
+
+async function resetAll() {
+  if (simRiseTimer) { clearTimeout(simRiseTimer); simRiseTimer = null; }
+  if (gatewaySimOffline) toggleGatewaySim();
+  STATIONS_DB.forEach(function (s) {
+    s.status = 'green';
+    s.level = 1 + Math.random() * 1.9;
+    s.lastAlertSentAt = null;
+    s.lastTransmissionAt = new Date().toISOString();
+    s._simulated = false;
+  });
+  eventLog = [];
+  bannerDismissed = false;
+  prevCriticalCount = 0;
+  disarmReset();
+  renderLog();
+  renderStations(); renderHydrographs(); renderMapPins(); renderAdmin();
+  await saveStationState();
+  addLog('info', 'Reset global', 'Todas las estaciones a verde · log limpio');
+  showToast('Sistema restablecido', 'success', 3000);
+}
+
+function disarmReset() {
+  resetArmed = false;
+  if (resetArmTimer) { clearTimeout(resetArmTimer); resetArmTimer = null; }
+  const btn = document.getElementById('reset-btn');
+  if (!btn) return;
+  btn.textContent = 'Restablecer todo';
+  btn.classList.remove('bg-red-600', 'text-white', 'border-red-600');
+  btn.classList.add('bg-white', 'border-red-300', 'text-red-700');
+}
+function confirmReset() {
+  const btn = document.getElementById('reset-btn');
+  if (!btn) { resetAll(); return; }
+  if (resetArmed) {
+    resetAll();
+    return;
+  }
+  resetArmed = true;
+  btn.textContent = '¿Seguro? Clic para confirmar';
+  btn.classList.remove('bg-white', 'border-red-300', 'text-red-700');
+  btn.classList.add('bg-red-600', 'text-white', 'border-red-600');
+  resetArmTimer = setTimeout(disarmReset, 3000);
+}
+
+// ============ CRITICAL BANNER ============
+function updateCriticalBanner() {
+  const red = STATIONS_DB.filter(s => s.status === 'red');
+  const countEl = document.getElementById('count-red');
+  const iconEl = document.getElementById('summary-red-icon');
+  if (red.length > 0) {
+    countEl.classList.add('critical-flash');
+    iconEl.classList.add('critical-flash');
+  } else {
+    countEl.classList.remove('critical-flash');
+    iconEl.classList.remove('critical-flash');
+  }
+  document.getElementById('critical-count').textContent = red.length;
+  document.getElementById('critical-names').textContent = red.map(s => s.id).join(', ');
+  if (red.length > 0 && prevCriticalCount === 0) bannerDismissed = false;
+  prevCriticalCount = red.length;
+  const banner = document.getElementById('critical-banner');
+  if (red.length === 0 || bannerDismissed) banner.classList.add('hidden');
+  else banner.classList.remove('hidden');
+}
+function dismissBanner() {
+  bannerDismissed = true;
+  document.getElementById('critical-banner').classList.add('hidden');
+}
+
+// ============ GATEWAY & DELIVERY ============
+async function checkGateway() {
+  try {
+    const resp = await fetchWithTimeout('/api/sms-queue');
+    const data = await resp.json();
+    const last = data.lastHeartbeat || 0;
+    const online = !gatewaySimOffline && (Date.now() - last) < 30000;
+
+    const dot = document.getElementById('gateway-dot');
+    const text = document.getElementById('gateway-text');
+    const pill = document.getElementById('gateway-pill');
+    if (gatewaySimOffline) {
+      dot.className = 'w-2 h-2 rounded-full bg-red-500';
+      text.className = 'text-red-700'; text.textContent = 'OFFLINE (SIM)';
+      pill.className = 'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-red-50 border border-red-200 transition-colors duration-300';
+    } else if (online) {
+      dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+      text.className = 'text-emerald-700'; text.textContent = 'Teléfono online';
+      pill.className = 'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 border border-emerald-200 transition-colors duration-300';
+    } else if (last > 0) {
+      dot.className = 'w-2 h-2 rounded-full bg-red-500';
+      text.className = 'text-red-700'; text.textContent = 'Teléfono offline';
+      pill.className = 'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-red-50 border border-red-200 transition-colors duration-300';
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-zinc-400';
+      text.className = 'text-zinc-600'; text.textContent = 'Sin señal';
+      pill.className = 'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-100 border border-zinc-200 transition-colors duration-300';
+    }
+
+    document.getElementById('queue-pending').textContent = data.pending || 0;
+    const phoneDot = document.getElementById('queue-phone-dot');
+    const phoneText = document.getElementById('queue-phone-text');
+    phoneDot.className = online ? 'w-2.5 h-2.5 rounded-full bg-emerald-500' : ((gatewaySimOffline || last > 0) ? 'w-2.5 h-2.5 rounded-full bg-red-500' : 'w-2.5 h-2.5 rounded-full bg-zinc-400');
+    phoneText.textContent = gatewaySimOffline ? 'SIM OFFLINE' : (online ? 'ONLINE' : (last > 0 ? 'OFFLINE' : 'SIN SEÑAL'));
+    phoneText.className = 'text-sm font-bold ' + (gatewaySimOffline || last > 0 ? 'text-red-600' : (online ? 'text-emerald-700' : 'text-zinc-600'));
+    document.getElementById('queue-last-heartbeat').textContent = last > 0 ? `Última señal: ${formatTimeAgo(new Date(last))}` : 'Sin señal registrada';
+
+    const adminState = document.getElementById('admin-gateway-state');
+    if (adminState) adminState.innerHTML = (online && !gatewaySimOffline) ? '<span class="text-emerald-600 font-semibold">● online</span>' : '<span class="text-red-600 font-semibold">● offline</span>';
+    return true;
+  } catch (e) {
+    const dot = document.getElementById('gateway-dot');
+    const text = document.getElementById('gateway-text');
+    const pill = document.getElementById('gateway-pill');
+    dot.className = 'w-2 h-2 rounded-full bg-zinc-400';
+    text.className = 'text-zinc-600'; text.textContent = 'Sin señal';
+    pill.className = 'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-zinc-100 border border-zinc-200 transition-colors duration-300';
+    const phoneDot = document.getElementById('queue-phone-dot');
+    const phoneText = document.getElementById('queue-phone-text');
+    if (phoneDot) phoneDot.className = 'w-2.5 h-2.5 rounded-full bg-zinc-400';
+    if (phoneText) { phoneText.textContent = 'SIN SEÑAL'; phoneText.className = 'text-sm font-bold text-zinc-600'; }
+    const hb = document.getElementById('queue-last-heartbeat');
+    if (hb) hb.textContent = 'Sin señal registrada';
+    return false;
+  }
+}
+
+function watchDelivery(msgId, stationId) {
+  let attempts = 0;
+  const timer = setInterval(async function () {
+    attempts++;
+    try {
+      const resp = await fetchWithTimeout(`/api/sms-status?id=${msgId}`);
+      const data = await resp.json();
+      if (!data.pending && data.result) {
+        clearInterval(timer);
+        const delivered = data.result.success;
+        const el = document.getElementById('queue-last-delivery');
+        el.textContent = delivered ? 'Entregado' : 'FALLÓ';
+        el.className = delivered ? 'text-sm font-bold text-emerald-700' : 'text-sm font-bold text-red-600';
+        addLog('sms', delivered ? 'SMS ENTREGADO' : 'SMS FALLÓ', `ID: ${msgId} · Estación: ${stationId}`);
+        showToast(delivered ? 'SMS entregado exitosamente' : 'El teléfono no pudo enviarlo', delivered ? 'success' : 'error', 5000);
+      }
+    } catch (e) {}
+    if (attempts > 40) clearInterval(timer);
+  }, 5000);
+}
+
+function toggleGatewaySim() {
+  gatewaySimOffline = !gatewaySimOffline;
+  const btn = document.getElementById('sim-gateway-btn');
+  if (gatewaySimOffline) {
+    btn.classList.remove('bg-zinc-100', 'border-zinc-300', 'text-zinc-700');
+    btn.classList.add('bg-red-600', 'border-red-600', 'text-white');
+    btn.textContent = 'Desactivar simulación';
+    addLog('status', 'Simulación: teléfono offline', 'El gateway se mostrará caído');
+  } else {
+    btn.classList.add('bg-zinc-100', 'border-zinc-300', 'text-zinc-700');
+    btn.classList.remove('bg-red-600', 'border-red-600', 'text-white');
+    btn.textContent = 'Simular teléfono offline';
+    addLog('status', 'Simulación: teléfono online', 'Fin del fallo simulado');
+  }
+  checkGateway();
+  showToast(gatewaySimOffline ? 'Simulando teléfono offline' : 'Simulación de fallo desactivada', 'info', 2000);
+}
+
+// ============ RENDER FUNCTIONS ============
+function renderStations() {
+  const grid = document.getElementById('stations-grid');
+  const list = filteredStations();
+  document.getElementById('count-green').textContent = STATIONS_DB.filter(s => s.status === 'green').length;
+  document.getElementById('count-yellow').textContent = STATIONS_DB.filter(s => s.status === 'yellow').length;
+  document.getElementById('count-red').textContent = STATIONS_DB.filter(s => s.status === 'red').length;
+  updateCriticalBanner();
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="col-span-full py-16 text-center text-zinc-500 flex flex-col items-center gap-3"><svg class="w-10 h-10 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><p class="font-medium text-sm">No hay estaciones con este filtro</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map((s, i) => {
+    const cfg = statusConfig[s.status];
+    const isRed = s.status === 'red';
+    const stale = isStale(s);
+    const sc = sectorForStation(s);
+    s._renderedStale = stale;
+    const levelPct = getLevelPercent(s.level);
+    const peList = Object.keys(s.peCodes).join(', ');
+    const showAlertBtn = (s.status === 'yellow' || s.status === 'red') && !stale;
+    const staleStyle = stale ? ' filter:grayscale(1) opacity(.72);' : '';
+    return `
+      <article role="button" tabindex="0" aria-label="Ver detalles de ${s.name}" title="Ver detalles"
+        onclick="openStationDetail('${s.id}')"
+        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openStationDetail('${s.id}')}"
+        class="card-enter group bg-white rounded-2xl border border-zinc-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col cursor-pointer" style="animation-delay: ${i * 40}ms;${staleStyle}">
+        <div class="h-1 ${cfg.accent}" aria-hidden="true"></div>
+        <div class="p-5 flex flex-col flex-1">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span class="font-mono text-xs font-semibold text-zinc-600 tracking-wider uppercase">${s.id}</span>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${cfg.badge}">${cfg.label}</span>
+                ${s._simulated ? `<span class="px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${SIM_BADGE.badge}">${SIM_BADGE.label}</span>` : ''}
+                ${stale ? `<span class="px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ${STALE_BADGE.badge}">${STALE_BADGE.label}</span>` : ''}
+              </div>
+              <h3 class="font-semibold text-zinc-900 text-sm leading-snug line-clamp-2">${s.name}</h3>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center text-zinc-500 group-hover:bg-zinc-100 group-hover:text-zinc-700 transition-colors flex-shrink-0 ml-3" aria-hidden="true">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 text-xs text-zinc-600 mb-4">
+            <svg class="w-4 h-4 flex-shrink-0 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="truncate">${s.location}</span>
+            ${sc ? `<span class="flex-shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 ring-1 ring-blue-600/20">${sc.name}</span>` : ''}
+          </div>
+
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-zinc-600 uppercase tracking-wider">Nivel del río (HG)</span>
+              <span class="text-sm font-bold text-zinc-900 font-mono">${s.level.toFixed(2)} <span class="text-zinc-500 font-sans text-xs font-normal">FT</span></span>
+            </div>
+            <div class="h-2 bg-zinc-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow="${s.level}" aria-valuemin="0" aria-valuemax="${MAX_LEVEL}" aria-label="Nivel del río">
+              <div class="h-full ${cfg.accent} gauge-bar rounded-full relative" style="width: ${levelPct}%">
+                ${isRed ? '<div class="absolute inset-0 bg-white/30 animate-pulse" aria-hidden="true"></div>' : ''}
+              </div>
+            </div>
+            <div class="flex justify-between mt-1.5 text-xs text-zinc-500 font-mono tracking-wide">
+              <span>0</span><span>3</span><span>6</span><span>9</span><span>12 FT</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs mb-4">
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200">
+              <div class="text-zinc-500 mb-0.5 text-xs uppercase tracking-wider font-semibold">PE Codes</div>
+              <div class="font-semibold text-zinc-800 truncate" title="${peList}">${peList}</div>
+            </div>
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200">
+              <div class="text-zinc-500 mb-0.5 text-xs uppercase tracking-wider font-semibold">Transmisión</div>
+              <div class="font-semibold text-zinc-800">Cada ${s.transmission.interval} min</div>
+            </div>
+          </div>
+
+          <div class="mt-auto pt-4 border-t border-zinc-100 flex items-center justify-between gap-3">
+            <div class="text-xs text-zinc-500 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Últ. transmisión: <span data-lasttx="${s.lastTransmissionAt || ''}">${formatTimeAgo(s.lastTransmissionAt)}</span>
+            </div>
+            ${showAlertBtn ? `
+            <button onclick="event.stopPropagation();promptAlert('${s.id}')" class="px-4 py-2.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-600 hover:text-white active:scale-95 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1.5 shadow-sm hover:shadow-red-500/25 min-h-[44px]" aria-label="Enviar alerta ${cfg.label} para ${s.name}">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              Alerta
+            </button>
+            ` : '<div class="text-xs text-zinc-400 font-medium">Sin acciones requeridas</div>'}
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderHydroSkeleton() {
+  const grid = document.getElementById('hydrographs-grid');
+  grid.innerHTML = Array(6).fill(
+    '<div class="border border-zinc-200 rounded-xl overflow-hidden bg-white"><div class="skeleton h-12 border-b border-zinc-200"></div><div class="p-3"><div class="skeleton h-40 rounded-lg"></div></div><div class="skeleton h-9"></div></div>'
+  ).join('');
+}
+
+function renderHydrographs() {
+  const grid = document.getElementById('hydrographs-grid');
+  const list = filteredStations();
+  if (list.length === 0) {
+    grid.innerHTML = '<div class="col-span-full py-12 text-center text-sm text-zinc-400">Sin estaciones para este filtro</div>';
+    return;
+  }
+  grid.innerHTML = list.map(s => {
+    const cfg = statusConfig[s.status];
+    const stale = isStale(s);
+    return `
+      <div class="border border-zinc-200 rounded-xl overflow-hidden hover:shadow-md hover:border-zinc-300 transition-all duration-300 bg-white ${stale ? 'opacity-60 grayscale' : ''}">
+        <div class="px-4 py-3 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-mono text-zinc-500 mb-0.5">${s.id}</div>
+            <div class="text-xs font-semibold text-zinc-900 truncate">${s.name}</div>
+          </div>
+          <div class="ml-2 px-2 py-1 rounded-full ${cfg.badge} text-xs font-bold whitespace-nowrap">${cfg.label}</div>
+        </div>
+        <div class="bg-white p-3">
+          <div class="aspect-[4/3] overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+            <img src="${s.graphUrl}" alt="Gráfica hidrológica de ${s.id}" class="hydrograph-img w-full h-full object-cover" loading="lazy" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG" />
+          </div>
+        </div>
+        <div class="px-4 py-3 bg-zinc-50 border-t border-zinc-200 text-xs text-zinc-600 flex items-center justify-between gap-2">
+          <span class="truncate">${s.level.toFixed(2)} FT · últ. <span data-lasttx="${s.lastTransmissionAt || ''}">${formatTimeAgo(s.lastTransmissionAt)}</span></span>
+          <span class="font-mono font-semibold text-zinc-900 flex-shrink-0">${s.level.toFixed(2)} FT</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function loadContacts() {
+  try {
+    const raw = localStorage.getItem('samhn_contacts_v4');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        CONTACTS_DB.length = 0;
+        arr.forEach(function (c) {
+          CONTACTS_DB.push({
+            id: c.id,
+            name: String(c.name || ''),
+            phone: String(c.phone || ''),
+            sector: (c.sector && sectorById(c.sector)) ? c.sector : (SECTORS[0] ? SECTORS[0].id : '')
+          });
+        });
+      }
+    }
+  } catch (e) {}
+  if (CONTACTS_DB.length === 0) {
+    DEFAULT_CONTACTS.forEach(function (c) { CONTACTS_DB.push(Object.assign({}, c)); });
+  }
+}
+function saveContacts() {
+  try { localStorage.setItem('samhn_contacts_v4', JSON.stringify(CONTACTS_DB)); } catch (e) {}
+  renderContacts();
+}
+function addContact(e) {
+  if (e) e.preventDefault();
+  const name = document.getElementById('contact-name').value.trim();
+  const phone = document.getElementById('contact-phone').value.trim();
+  const sector = document.getElementById('contact-sector').value;
+  if (!name || !phone || !sector) { showToast('Completa todos los campos', 'warning', 2500); return false; }
+  if (!/^[+0-9][0-9 ()-]{6,19}$/.test(phone)) { showToast('Formato de teléfono inválido', 'warning', 2500); return false; }
+  CONTACTS_DB.push({ id: Date.now(), name: name, phone: phone, sector: sector });
+  document.getElementById('contact-name').value = '';
+  document.getElementById('contact-phone').value = '';
+  saveContacts();
+  const sc = sectorById(sector);
+  addLog('info', 'Contacto añadido', `${name} · ${phone} · ${sc ? sc.name : sector}`);
+  showToast('Contacto añadido', 'success', 2500);
+  return false;
+}
+function removeContact(id) {
+  const c = CONTACTS_DB.find(function (x) { return x.id === id; });
+  if (!c) return;
+  CONTACTS_DB = CONTACTS_DB.filter(function (x) { return x.id !== id; });
+  saveContacts();
+  addLog('info', 'Contacto eliminado', c.name);
+  showToast('Contacto eliminado', 'success', 2500);
+}
+function renderContacts() {
+  const list = document.getElementById('contacts-list');
+  const sel = document.getElementById('contact-sector');
+  const empty = document.getElementById('contacts-empty');
+  const sub = document.getElementById('contacts-subtitle');
+  if (sel) sel.innerHTML = SECTORS.map(function (sc) {
+    const n = sectorContacts(sc.id).length;
+    return '<option value="' + sc.id + '">' + sc.name + (n > 0 ? ' (' + n + ')' : '') + '</option>';
+  }).join('');
+  if (list) list.innerHTML = CONTACTS_DB.map(function (c) {
+    const sc = sectorById(c.sector);
+    const initials = (c.name || '?').split(' ').map(function (n) { return n[0]; }).slice(0, 2).join('').toUpperCase();
+    return `
+      <div class="flex items-center gap-3 px-5 py-4 hover:bg-zinc-50 transition-colors group">
+        <div class="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-xs flex-shrink-0" aria-hidden="true">${initials}</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold text-zinc-900 truncate">${c.name}</div>
+          <div class="text-xs text-zinc-600 font-mono">${c.phone}</div>
+          <div class="text-xs text-zinc-500 mt-0.5 truncate">${sc ? sc.name : 'Sin sector'}</div>
+        </div>
+        <button onclick="removeContact(${c.id})" class="p-2 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 transition-colors min-h-[44px] flex-shrink-0" aria-label="Eliminar contacto ${c.name}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </div>
+    `;
+  }).join('');
+  if (empty) empty.classList.toggle('hidden', CONTACTS_DB.length > 0);
+  if (sub) sub.textContent = CONTACTS_DB.length + ' receptores · alertas por sector';
+}
+
+const PIN_COLORS = { green: '#10b981', yellow: '#f59e0b', red: '#ef4444' };
+let stationMap = null;
+let stationMarkers = [];
+let stationMapReady = false;
+
+function stationIcon(s) {
+  const stale = isStale(s);
+  const shape = stale ? '<circle cx="6" cy="6" r="4" fill="currentColor"/>' : statusConfig[s.status].icon;
+  const color = stale ? '#a1a1aa' : (PIN_COLORS[s.status] || '#a1a1aa');
+  return L.divIcon({
+    className: 'samhn-pin-wrap',
+    html: '<div class="samhn-pin' + ((s.status === 'red' && !stale) ? ' samhn-pin-red' : '') + '"><div class="samhn-pin-dot" style="background-color:' + color + ';"><svg viewBox="0 0 12 12" aria-hidden="true">' + shape + '</svg></div></div>',
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    tooltipAnchor: [0, -14]
+  });
+}
+
+function initStationMap() {
+  if (stationMapReady || typeof L === 'undefined') return;
+  const el = document.getElementById('stations-map');
+  if (!el) return;
+  stationMapReady = true;
+  stationMap = L.map('stations-map', { attributionControl: true, zoomControl: true }).setView([14.6, -86.5], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(stationMap);
+  const bounds = L.latLngBounds(STATIONS_DB.map(s => [s.lat, s.lng]));
+  stationMap.fitBounds(bounds.pad(0.25), { maxZoom: 10 });
+  renderMapPins();
+}
+
+function renderMapPins() {
+  if (!stationMap) return;
+  const visible = {};
+  filteredStations().forEach(function (s) { visible[s.id] = s; });
+  stationMarkers.forEach(function (m) {
+    if (m && !visible[m.options.id]) { stationMap.removeLayer(m); }
+  });
+  filteredStations().forEach(function (s) {
+    const stale = isStale(s);
+    let marker = stationMarkers.find(function (m) { return m && m.options.id === s.id; });
+    if (!marker) {
+      marker = L.marker([s.lat, s.lng], { id: s.id, icon: stationIcon(s), keyboard: true, title: s.id }).addTo(stationMap);
+      marker.bindTooltip('', { direction: 'top', offset: [0, -14], opacity: 1 });
+      marker.on('click', function () { openStationDetail(s.id); });
+      stationMarkers.push(marker);
+    }
+    marker.setIcon(stationIcon(s));
+    marker.setTooltipContent(`${s.id} · ${s.level.toFixed(1)} FT${stale ? ' · OBSOLETO' : ''}${s._simulated ? ' · SIM' : ''}`);
+    const sc = sectorForStation(s);
+    const scN = contactsForStation(s).length;
+    marker.setPopupContent(`<strong>${s.id}</strong> — ${s.name}<br>${s.level.toFixed(2)} FT · ${stale ? 'OBSOLETO' : statusConfig[s.status].label}<br>Sector: ${sc ? sc.name : '—'} · ${scN} contacto(s)`);
+  });
+}
+
+function positionMapPins() {
+  if (stationMap) stationMap.invalidateSize();
+}
+
+// ============ MODALS (focus trap + keyboard) ============
+function getFocusable(container) {
+  return Array.prototype.slice.call(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+}
+let lastFocused = null;
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  lastFocused = document.activeElement;
+  m.classList.remove('hidden');
+  m.classList.add('modal-open');
+  document.body.classList.add('overflow-hidden');
+  const f = getFocusable(m);
+  if (f.length) f[0].focus();
+}
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.add('hidden');
+  m.classList.remove('modal-open');
+  if (!document.querySelector('.modal-open')) document.body.classList.remove('overflow-hidden');
+  if (lastFocused && lastFocused.focus) lastFocused.focus();
+}
+function modalKeyHandler(e) {
+  const m = document.querySelector('.modal-open');
+  if (!m) return;
+  if (e.key === 'Escape') {
+    if (m.id === 'admin-modal') closeAdmin();
+    else if (m.id === 'confirm-modal') closeConfirmModal();
+    else if (m.id === 'station-modal') closeStationModal();
+    return;
+  }
+  if (e.key === 'Tab') {
+    const f = getFocusable(m);
+    if (f.length === 0) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+}
+function wireSheetSwipe(panelId, closeFn) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const scroller = panel.querySelector('.overflow-y-auto');
+  let startY = 0;
+  panel.addEventListener('touchstart', function (e) { startY = e.touches[0].clientY; }, { passive: true });
+  panel.addEventListener('touchmove', function (e) {
+    if (window.innerWidth >= 768) return;
+    if (scroller && scroller.scrollTop > 0) return;
+    const d = e.touches[0].clientY - startY;
+    if (d > 0) panel.style.transform = 'translateY(' + Math.min(d, 120) + 'px)';
+  }, { passive: true });
+  panel.addEventListener('touchend', function (e) {
+    if (window.innerWidth >= 768) return;
+    const d = e.changedTouches[0].clientY - startY;
+    panel.style.transform = '';
+    if (d > 90) closeFn();
+  }, { passive: true });
+}
+
+// ============ ADMIN & FILTERS ============
+function openAdmin() { renderAdmin(); openModal('admin-modal'); }
+function closeAdmin() { closeModal('admin-modal'); }
+function renderAdmin() {
+  const list = document.getElementById('admin-stations-list');
+  list.innerHTML = STATIONS_DB.map(s => {
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200 hover:border-zinc-300 transition-colors">
+        <div class="flex items-center justify-between mb-3">
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-mono text-zinc-500 mb-0.5">${s.id}</div>
+            <div class="text-sm font-semibold text-zinc-900 truncate">${s.name}</div>
+          </div>
+          <div class="ml-2 px-2 py-1 rounded-full ${cfg.badge} text-xs font-bold whitespace-nowrap">${cfg.label}</div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="updateStationStatus('${s.id}','green')" class="px-2 py-2.5 text-xs font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all min-h-[44px]">Normal</button>
+          <button onclick="updateStationStatus('${s.id}','yellow')" class="px-2 py-2.5 text-xs font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition-all min-h-[44px]">Precaución</button>
+          <button onclick="updateStationStatus('${s.id}','red')" class="px-2 py-2.5 text-xs font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all min-h-[44px]">Crítico</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  updateFilterButtons();
+  renderStations();
+  renderMapPins();
+  renderHydrographs();
+}
+function updateFilterButtons() {
+  document.querySelectorAll('.filter-btn').forEach(function (b) {
+    const active = b.dataset.filter === currentFilter;
+    if (active) {
+      b.classList.remove('text-zinc-600', 'hover:text-zinc-900', 'hover:bg-white/60');
+      b.classList.add('bg-zinc-900', 'text-white', 'shadow-sm');
+      b.setAttribute('aria-pressed', 'true');
+    } else {
+      b.classList.remove('bg-zinc-900', 'text-white', 'shadow-sm');
+      b.classList.add('text-zinc-600', 'hover:text-zinc-900', 'hover:bg-white/60');
+      b.setAttribute('aria-pressed', 'false');
+    }
+  });
+  document.querySelectorAll('[data-summary-filter]').forEach(function (b) {
+    b.setAttribute('aria-pressed', String(b.dataset.summaryFilter === currentFilter));
+  });
+  const allBtn = document.querySelector('[data-filter="all"]');
+  if (allBtn) allBtn.textContent = 'Todas (' + STATIONS_DB.length + ')';
+}
+document.querySelectorAll('.filter-btn').forEach(function (btn) {
+  btn.addEventListener('click', function () { setFilter(btn.dataset.filter); });
+});
+document.querySelectorAll('[role="group"][aria-label^="Filtrar"]').forEach(function (group) {
+  group.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const btns = Array.prototype.slice.call(group.querySelectorAll('.filter-btn')).filter(b => !b.disabled);
+    const idx = btns.indexOf(document.activeElement);
+    if (idx < 0) return;
+    e.preventDefault();
+    const next = (e.key === 'ArrowRight') ? btns[(idx + 1) % btns.length] : btns[(idx - 1 + btns.length) % btns.length];
+    next.focus();
+  });
+});
+
+async function refreshStations() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add('opacity-60', 'pointer-events-none');
+  const icon = document.getElementById('refresh-icon');
+  icon.style.transition = 'transform 0.8s cubic-bezier(0.34,1.56,0.64,1)';
+  icon.style.transform = 'rotate(360deg)';
+  renderHydroSkeleton();
+  let fetched = false;
+  try {
+    fetched = await loadStationState(true);
+    await checkGateway();
+    const t = new Date();
+    await saveStationState();
+    document.getElementById('last-updated').textContent = 'Actualizado: ' + t.toLocaleTimeString('es-HN', { hour12: false });
+    renderStations(); renderHydrographs(); renderMapPins(); renderAdmin();
+    if (fetched) {
+      addLog('info', 'Datos actualizados', `${STATIONS_DB.length} estaciones · ${t.toLocaleTimeString('es-HN', { hour12: false })}`);
+      showToast('Datos actualizados', 'success', 2000);
+    } else {
+      addLog('status', 'Datos locales (API no responde)', 'No se pudo contactar /api/stations');
+      showToast('Sin conexión a la API, datos locales', 'warning', 4000);
+    }
+  } catch (e) {
+    addLog('status', 'Error al actualizar', e.message);
+    showToast('Error al actualizar datos', 'error', 4000);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('opacity-60', 'pointer-events-none');
+    setTimeout(function () { icon.style.transform = ''; }, 900);
+  }
+}
+
+// ============ STATION DETAIL ============
+function openStationDetail(id) {
+  const s = STATIONS_DB.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('station-modal-title').textContent = s.name;
+  document.getElementById('station-modal-id').textContent = s.id;
+  const badge = document.getElementById('station-modal-badge');
+  const cfg = statusConfig[s.status];
+  badge.className = 'px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide ' + cfg.badge;
+  badge.textContent = cfg.label;
+  const stale = isStale(s);
+  const sc = sectorForStation(s);
+  const levelPct = getLevelPercent(s.level);
+  const peRows = Object.keys(s.peCodes).map(function (code) {
+    const v = s.peCodes[code];
+    return `<tr class="border-b border-zinc-100 last:border-0">
+      <td class="py-2 px-3 font-mono text-xs font-bold text-zinc-800">${code}</td>
+      <td class="py-2 px-3 text-xs text-zinc-600">${PE_CODES_INFO[code] || code}</td>
+      <td class="py-2 px-3 text-xs text-zinc-500 font-mono text-right">${v.interval}</td>
+      <td class="py-2 px-3 text-xs text-zinc-500 font-mono text-right">${v.coeff}</td>
+    </tr>`;
+  }).join('');
+  const events = eventLog.filter(function (e) {
+    return (e.title || '').indexOf(id) !== -1 || (e.detail || '').indexOf(id) !== -1;
+  }).slice(0, 8).map(function (e) {
+    const icon = LOG_ICONS[e.type] || LOG_ICONS.info;
+    return `<li class="flex items-start gap-2 text-xs text-zinc-600">
+      <span class="flex-shrink-0 mt-0.5">${icon}</span>
+      <span class="flex-1"><span class="font-semibold text-zinc-800">${e.title}</span> · ${e.detail}</span>
+      <span class="flex-shrink-0 text-xs font-mono text-zinc-500">${formatTimeAgo(e.time)}</span>
+    </li>`;
+  }).join('');
+  document.getElementById('station-modal-body').innerHTML = `
+    <div class="p-6 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-zinc-50 rounded-xl border border-zinc-200 overflow-hidden">
+          <img src="${s.graphUrl}" alt="Gráfica hidrológica de ${s.id}" class="w-full h-44 object-cover" loading="lazy" onerror="this.onerror=null;this.src=window.PLACEHOLDER_IMG" />
+        </div>
+        <div class="space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs font-bold text-zinc-500 uppercase tracking-wider">Nivel del río (HG)</span>
+              <span class="text-lg font-bold text-zinc-900 font-mono">${s.level.toFixed(2)} <span class="text-xs text-zinc-500 font-sans font-normal">FT</span></span>
+            </div>
+            <div class="h-2 bg-zinc-200 rounded-full overflow-hidden"><div class="h-full ${cfg.accent} rounded-full" style="width:${levelPct}%"></div></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200"><div class="text-zinc-500 font-semibold uppercase tracking-wider mb-1">Transmisión</div><div class="font-semibold text-zinc-800">Cada ${s.transmission.interval} min</div></div>
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200"><div class="text-zinc-500 font-semibold uppercase tracking-wider mb-1">Últ. transmisión</div><div class="font-semibold text-zinc-800">${formatTimeAgo(s.lastTransmissionAt)}</div></div>
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200"><div class="text-zinc-500 font-semibold uppercase tracking-wider mb-1">Último SMS</div><div class="font-semibold text-zinc-800">${formatTimeAgo(s.lastAlertSentAt)}</div></div>
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200"><div class="text-zinc-500 font-semibold uppercase tracking-wider mb-1">Ubicación</div><div class="font-semibold text-zinc-800 truncate" title="${s.location}">${s.location}</div></div>
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200"><div class="text-zinc-500 font-semibold uppercase tracking-wider mb-1">Sector</div><div class="font-semibold text-zinc-800 truncate" title="${sc ? sc.name : 'Sin sector'}">${sc ? sc.name : 'Sin sector'}</div></div>
+            <div class="bg-zinc-50 rounded-lg p-3 border border-zinc-200"><div class="text-zinc-500 font-semibold uppercase tracking-wider mb-1">Contactos del sector</div><div class="font-semibold text-zinc-800">${contactsForStation(s).length}</div></div>
+          </div>
+        </div>
+      </div>
+      ${stale ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800 font-medium flex items-start gap-2"><svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg><span>Datos obsoletos: última transmisión ${formatTimeAgo(s.lastTransmissionAt)} (tolerancia ${s.transmission.interval * STALE_FACTOR} min).</span></div>` : ''}
+      <div>
+        <h4 class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">PE Codes</h4>
+        <div class="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+          <table class="w-full"><thead><tr class="border-b border-zinc-100 text-left text-xs font-bold text-zinc-500 uppercase tracking-wider"><th class="py-2 px-3">Código</th><th class="py-2 px-3">Parámetro</th><th class="py-2 px-3 text-right">Intervalo</th><th class="py-2 px-3 text-right">Coeficiente</th></tr></thead><tbody>${peRows}</tbody></table>
+        </div>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-zinc-600 uppercase tracking-wider mb-2">Eventos recientes</h4>
+        ${events ? '<ul class="space-y-2">' + events + '</ul>' : '<p class="text-xs text-zinc-400">Sin eventos registrados para esta estación.</p>'}
+      </div>
+    </div>`;
+  openModal('station-modal');
+}
+function closeStationModal() { closeModal('station-modal'); }
+
+// ============ SIMULATOR ============
+function renderSimulator() {
+  const sel = document.getElementById('sim-station');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Selecciona una estación</option>' + STATIONS_DB.map(s => `<option value="${s.id}">${s.id} — ${s.name}</option>`).join('');
+}
+function selectedStation() {
+  const id = document.getElementById('sim-station').value;
+  return STATIONS_DB.find(s => s.id === id);
+}
+async function simulateRise() {
+  const s = selectedStation();
+  if (!s) { showToast('Selecciona una estación primero', 'warning', 2500); return; }
+  if (s.status === 'red') { showToast(`${s.id} ya está en crítico`, 'warning', 2500); return; }
+  showToast(`Simulando subida en ${s.id}...`, 'info', 2500);
+  await updateStationStatus(s.id, 'yellow', { simulated: true });
+  if (simRiseTimer) clearTimeout(simRiseTimer);
+  simRiseTimer = setTimeout(function () {
+    simRiseTimer = null;
+    updateStationStatus(s.id, 'red', { simulated: true });
+  }, 4000);
+}
+function simulateStationDown() {
+  const s = selectedStation();
+  if (!s) { showToast('Selecciona una estación primero', 'warning', 2500); return; }
+  s.lastTransmissionAt = new Date(Date.now() - 3 * 86400000).toISOString();
+  s._simulated = true;
+  saveStationState();
+  renderStations(); renderMapPins(); renderHydrographs();
+  addLog('info', `Simulación: ${s.id} sin datos (SIM)`, 'Última transmisión hace 3 días → OBSOLETO');
+  showToast(`${s.id} marcada con datos obsoletos`, 'warning', 3000);
+}
+
+// ============ INIT ============
+function updateClock() { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('es-HN', { hour12: false }); }
+
+function updateLiveStamps() {
+  const needsRender = STATIONS_DB.some(function (s) {
+    const stale = isStale(s);
+    const changed = s._renderedStale !== stale;
+    s._renderedStale = stale;
+    return changed;
+  });
+  if (needsRender) {
+    renderStations(); renderMapPins(); renderHydrographs();
+    return;
+  }
+  document.querySelectorAll('[data-lasttx]').forEach(function (el) {
+    const ts = el.getAttribute('data-lasttx');
+    el.textContent = formatTimeAgo(ts || null);
+  });
+}
+
+(function init() {
+  STATIONS_DB.forEach(function (s) {
+    if (!s.lastTransmissionAt) s.lastTransmissionAt = new Date(Date.now() - (Math.floor(Math.random() * 25) + 5) * 60000).toISOString();
+  });
+  document.getElementById('theme-toggle').setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+  applySoundUI();
+  document.getElementById('station-count').textContent = STATIONS_DB.length + ' estaciones activas';
+  updateFilterButtons();
+  loadContacts();
+  renderSimulator();
+  initStationMap();
+  renderStations();
+  renderContacts();
+  renderMapPins();
+  renderHydroSkeleton();
+  renderLog();
+  addLog('info', 'Sistema iniciado', 'NOVA SMS Cloud conectado');
+  addLog('info', 'Estaciones cargadas', `${STATIONS_DB.length} estaciones NOAA HADS en ${SECTORS.length} sectores, ${CONTACTS_DB.length} contactos`);
+  setTimeout(function () { loadStationState(); renderHydrographs(); }, 600);
+  checkGateway();
+  setInterval(checkGateway, 5000);
+  setInterval(updateClock, 1000);
+  setInterval(updateLiveStamps, 30000);
+  window.addEventListener('resize', positionMapPins);
+  document.addEventListener('keydown', modalKeyHandler);
+  wireSheetSwipe('admin-modal-panel', closeAdmin);
+  wireSheetSwipe('station-modal-panel', closeStationModal);
+  updateClock();
+})();
+</script>
+</body>
+</html>

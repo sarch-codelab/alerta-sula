@@ -20,6 +20,6 @@
     }
   },
   "rewrites": [
-    { "source": "/", "destination": "/simuladorv3.html" }
+    { "source": "/", "destination": "/simuladorv4.html" }
   ]
 }
