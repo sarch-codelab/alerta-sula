@@ -136,7 +136,7 @@ def enviar_cloud(numero, mensaje):
 
 
 def get_modo():
-    cfg = cargar_config().get("modo", "local")
+    cfg = cargar_config().get("modo", "cloud")
     return cfg
 
 
