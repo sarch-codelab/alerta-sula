@@ -1,12 +1,7 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
+  if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
-  const { to, message } = req.body;
-  if (!to || !message) {
-    return res.status(400).json({ success: false, error: "Faltan parametros" });
-  }
-  const id = "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
   const kvUrl = process.env.KV_REST_API_URL;
   const kvToken = process.env.KV_REST_API_TOKEN;
 
@@ -15,15 +10,18 @@ export default async function handler(req, res) {
   }
 
   try {
-    const entry = JSON.stringify({ id, to, message, created: Date.now() });
-    const kvResp = await fetch(`${kvUrl}/lpush/sms_queue`, {
+    const kvResp = await fetch(`${kvUrl}/rpop/sms_queue`, {
       method: "POST",
       headers: { Authorization: `Bearer ${kvToken}` },
-      body: JSON.stringify([entry]),
+      body: JSON.stringify([]),
     });
     const kvData = await kvResp.json();
     if (kvData.error) throw new Error(kvData.error);
-    return res.status(200).json({ success: true, id });
+    if (!kvData.result) {
+      return res.status(200).json({ message: null });
+    }
+    const msg = JSON.parse(kvData.result);
+    return res.status(200).json({ message: msg });
   } catch (err) {
     return res.status(502).json({ success: false, error: err.message });
   }

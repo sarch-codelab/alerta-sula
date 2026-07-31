@@ -2,12 +2,15 @@
   "functions": {
     "api/send-sms.js": {
       "maxDuration": 30
+    },
+    "api/sms-poll.js": {
+      "maxDuration": 30
+    },
+    "api/sms-report.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
     { "source": "/", "destination": "/simulador.html" }
-  ],
-  "env": {
-    "NGROK_URL": "https://untunably-unexporting-weston.ngrok-free.dev"
-  }
+  ]
 }
