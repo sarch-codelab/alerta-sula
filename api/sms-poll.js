@@ -2,8 +2,17 @@ export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
-  const kvUrl = process.env.KV_REST_API_URL || process.env.KV_URL;
-  const kvToken = process.env.KV_REST_API_TOKEN;
+  const redisUrl = process.env.REDIS_URL || "";
+  let kvUrl = process.env.KV_REST_API_URL;
+  let kvToken = process.env.KV_REST_API_TOKEN;
+
+  if (!kvUrl && redisUrl.startsWith("redis://")) {
+    try {
+      const u = new URL(redisUrl);
+      kvUrl = `https://${u.hostname}`;
+      kvToken = u.password;
+    } catch (e) { /* fallback */ }
+  }
 
   if (!kvUrl || !kvToken) {
     return res.status(500).json({ success: false, error: "KV no configurado" });
