@@ -819,9 +819,20 @@ function promptAlert(stationId) {
   const s = STATIONS_DB.find(x => x.id === stationId);
   if (!s) return;
   pendingAlertStation = s;
-  document.getElementById('confirm-station-name').textContent = s.name;
   const targets = contactsForStation(s);
   const sc = sectorForStation(s);
+  if (targets.length === 0) {
+    addLog('alert', `ALERTA MANUAL CANCELADA — ${s.id} sin contactos en sector`, `${sc ? sc.name : 'sector desconocido'}`);
+    showToast(`Sin contactos en ${sc ? sc.name : 'el sector'} — añade contactos primero`, 'warning', 4000);
+    pendingAlertStation = null;
+    return;
+  }
+  const sendBtn = document.getElementById('confirm-send-btn');
+  if (sendBtn) {
+    sendBtn.disabled = false;
+    sendBtn.classList.remove('opacity-60', 'pointer-events-none');
+  }
+  document.getElementById('confirm-station-name').textContent = s.name;
   document.getElementById('confirm-contact-count').textContent = targets.length;
   const desc = document.getElementById('confirm-modal-desc');
   const box = document.getElementById('confirm-box');
