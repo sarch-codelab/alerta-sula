@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>SAMHN · Sistema de Alertas Hidrometeorológicas de Honduras</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif'],
+          mono: ['JetBrains Mono', 'monospace'],
+        },
+        colors: {
+          zinc: { 50: '#fafafa', 100: '#f4f4f5', 200: '#e4e4e7', 300: '#d4d4d8', 400: '#a1a1aa', 500: '#71717a', 600: '#52525b', 700: '#3f3f46', 800: '#27272a', 900: '#18181b', 950: '#09090b' }
+        },
+        animation: {
+          'fade-in': 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+          'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        },
+        keyframes: {
+          fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+          slideUp: { '0%': { transform: 'translateY(16px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    background-color: #fafafa;
+    background-image: radial-gradient(#e4e4e7 1px, transparent 1px);
+    background-size: 24px 24px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Scrollbar minimalista */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+  /* Animaciones personalizadas */
+  @keyframes pulse-ring { 
+    0% { transform: scale(0.8); opacity: 0.6; } 
+    100% { transform: scale(2.5); opacity: 0; } 
+  }
+  .pulse-ring::before { 
+    content: ''; position: absolute; inset: 0; border-radius: 9999px; 
+    background: currentColor; animation: pulse-ring 2.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; 
+  }
+  
+  .card-enter { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+  .gauge-bar { transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+  
+  .map-pin { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .map-pin:hover { transform: translate(-50%, -50%) scale(1.2); z-index: 10; }
+  .map-pin.active .pin-dot { animation: pin-pulse 2s ease-in-out infinite; }
+  @keyframes pin-pulse { 
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 
+    50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); } 
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  
+  .hydrograph-img { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s ease; }
+  .hydrograph-img:hover { transform: scale(1.02); filter: brightness(1.02); }
+</style>
+</head>
+<body class="text-zinc-600 min-h-screen flex flex-col">
+
+<!-- TOP BAR -->
+<div class="bg-zinc-950 text-zinc-400 text-[11px] border-b border-zinc-800">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="flex items-center gap-2 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="font-medium text-zinc-300">Sistema Operativo</span>
+      </span>
+      <span class="hidden sm:inline text-zinc-700">|</span>
+      <span class="hidden sm:inline font-mono text-zinc-500">NOAA HADS · Honduras (HN)</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <span class="hidden sm:flex items-center gap-1.5 text-zinc-500">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+        Canal CE
+      </span>
+      <span id="live-clock" class="font-mono text-zinc-300 font-medium">--:--:--</span>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="glass-panel border-b border-zinc-200/60 sticky top-0 z-40 transition-all duration-300">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-3.5">
+      <div class="relative group">
+        <div class="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center shadow-lg shadow-zinc-900/10 group-hover:scale-105 transition-transform duration-300">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+        </div>
+        <div class="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white"></div>
+      </div>
+      <div>
+        <h1 class="font-bold text-zinc-900 text-base tracking-tight">SAMHN</h1>
+        <p class="text-[11px] text-zinc-500 font-medium leading-tight">Sistema de Alertas Hidrometeorológicas</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center gap-3">
+      <div class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-zinc-100/80 border border-zinc-200/60 rounded-lg text-[11px]">
+        <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="text-zinc-700 font-semibold">10 estaciones activas</span>
+      </div>
+      
+      <div id="gateway-pill" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-zinc-100 border border-zinc-200/60 transition-colors duration-300">
+        <span id="gateway-dot" class="w-2 h-2 rounded-full bg-zinc-400"></span>
+        <span id="gateway-text" class="text-zinc-600">Verificando...</span>
+      </div>
+      
+      <button onclick="openAdmin()" class="p-2 rounded-lg bg-zinc-900 text-white hover:bg-zinc-800 active:scale-95 transition-all duration-200 shadow-sm" title="Panel de Administración">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-24 flex-1 w-full">
+
+  <!-- STATUS SUMMARY -->
+  <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+    <div class="bg-white rounded-2xl p-5 border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] relative overflow-hidden group hover:shadow-md transition-all duration-300">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+          <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Normal</span>
+        </div>
+        <div id="count-green" class="text-4xl font-bold text-zinc-900 tracking-tight">0</div>
+        <div class="text-xs text-zinc-500 mt-1 font-medium">estaciones operativas</div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-2xl p-5 border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] relative overflow-hidden group hover:shadow-md transition-all duration-300">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+          <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Precaución</span>
+        </div>
+        <div id="count-yellow" class="text-4xl font-bold text-zinc-900 tracking-tight">0</div>
+        <div class="text-xs text-zinc-500 mt-1 font-medium">monitoreo activo</div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-2xl p-5 border border-red-100 shadow-[0_1px_3px_rgba(0,0,0,0.02)] relative overflow-hidden group hover:shadow-md hover:border-red-200 transition-all duration-300">
+      <div class="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+          <span class="text-[10px] font-bold text-red-600 uppercase tracking-widest">Crítico</span>
+        </div>
+        <div id="count-red" class="text-4xl font-bold text-red-600 tracking-tight">0</div>
+        <div class="text-xs text-red-500 mt-1 font-medium">requiere acción inmediata</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP SECTION -->
+  <section class="bg-white rounded-2xl border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <h2 class="font-semibold text-zinc-900 text-sm tracking-tight">Mapa de Estaciones NOAA HADS</h2>
+        <p class="text-[11px] text-zinc-500 mt-0.5">Red de monitoreo en tiempo real · Honduras</p>
+      </div>
+      <div class="flex items-center gap-4 text-[11px] font-medium">
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Normal</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Precaución</span>
+        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span>Crítico</span>
+      </div>
+    </div>
+    <div class="relative bg-zinc-100 aspect-[16/9] sm:aspect-[21/9] overflow-hidden">
+      <img id="map-image" src="https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1b9d66dc6-7b7d-4c2a-953b-2210d0e5a2bb.png" alt="Mapa Honduras" class="w-full h-full object-cover opacity-95" />
+      <div class="absolute inset-0 bg-gradient-to-t from-zinc-900/10 to-transparent pointer-events-none"></div>
+      <div id="map-pins" class="absolute inset-0"></div>
+    </div>
+  </section>
+
+  <!-- FILTERS -->
+  <section class="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+    <div class="flex items-center gap-2 p-1 bg-zinc-100/80 border border-zinc-200/60 rounded-xl overflow-x-auto max-w-full">
+      <button data-filter="all" class="filter-btn px-4 py-2 rounded-lg text-[11px] font-semibold bg-zinc-900 text-white shadow-sm transition-all duration-200 whitespace-nowrap">Todas (10)</button>
+      <button data-filter="green" class="filter-btn px-4 py-2 rounded-lg text-[11px] font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap">Normal</button>
+      <button data-filter="yellow" class="filter-btn px-4 py-2 rounded-lg text-[11px] font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap">Precaución</button>
+      <button data-filter="red" class="filter-btn px-4 py-2 rounded-lg text-[11px] font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-white/60 transition-all duration-200 whitespace-nowrap">Crítico</button>
+    </div>
+    <div class="flex-1"></div>
+    <button onclick="refreshStations()" class="flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-semibold bg-white text-zinc-700 border border-zinc-200/60 hover:bg-zinc-50 hover:border-zinc-300 active:scale-95 transition-all duration-200 whitespace-nowrap shadow-sm">
+      <svg id="refresh-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Actualizar datos
+    </button>
+  </section>
+
+  <!-- STATIONS GRID -->
+  <section id="stations-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10"></section>
+
+  <!-- HYDROGRAPHS SECTION -->
+  <section class="bg-white rounded-2xl border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden mb-10">
+    <div class="px-6 py-4 border-b border-zinc-100">
+      <h2 class="font-semibold text-zinc-900 text-sm tracking-tight">📊 Gráficas HG — River Stage (FT)</h2>
+      <p class="text-[11px] text-zinc-500 mt-0.5">Datos NOAA HADS · Decode Data · Columna VB · GRAPH · HG Height</p>
+    </div>
+    <div class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="hydrographs-grid"></div>
+    </div>
+  </section>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+    <!-- CONTACTS -->
+    <section class="lg:col-span-1 bg-white rounded-2xl border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden">
+      <div class="px-6 py-4 border-b border-zinc-100">
+        <h2 class="font-semibold text-zinc-900 text-sm tracking-tight">📞 Contactos de Emergencia</h2>
+        <p class="text-[11px] text-zinc-500 mt-0.5">Receptores de alerta SMS automática</p>
+      </div>
+      <div id="contacts-list" class="divide-y divide-zinc-100"></div>
+    </section>
+
+    <!-- EVENT LOG -->
+    <section class="lg:col-span-2 bg-white rounded-2xl border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+      <div class="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold text-zinc-900 text-sm tracking-tight">📋 Registro de Eventos</h2>
+          <p class="text-[11px] text-zinc-500 mt-0.5">Historial de alertas y cambios de estado</p>
+        </div>
+        <button onclick="clearLog()" class="text-[11px] text-zinc-500 hover:text-red-600 font-medium transition-colors px-2 py-1 rounded hover:bg-red-50">Limpiar</button>
+      </div>
+      <div id="event-log" class="flex-1 overflow-y-auto max-h-96 p-6"></div>
+    </section>
+  </div>
+
+  <!-- SMS QUEUE STATUS -->
+  <section class="bg-white rounded-2xl border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden">
+    <div class="px-6 py-4 border-b border-zinc-100">
+      <h2 class="font-semibold text-zinc-900 text-sm tracking-tight">📡 Estado del Gateway SMS</h2>
+      <p class="text-[11px] text-zinc-500 mt-0.5">NOVA SMS Cloud · Vercel + Redis</p>
+    </div>
+    <div class="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200/60">
+        <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Teléfono Android</div>
+        <div class="flex items-center gap-2">
+          <span id="queue-phone-dot" class="w-2.5 h-2.5 rounded-full bg-zinc-400"></span>
+          <span id="queue-phone-text" class="text-sm font-bold text-zinc-900">Verificando...</span>
+        </div>
+        <div id="queue-last-heartbeat" class="text-[11px] text-zinc-500 mt-2 font-mono">—</div>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200/60">
+        <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Mensajes en cola</div>
+        <div id="queue-pending" class="text-3xl font-bold text-zinc-900 tracking-tight">0</div>
+        <div class="text-[11px] text-zinc-500 mt-1">esperando al teléfono</div>
+      </div>
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200/60">
+        <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Última entrega</div>
+        <div id="queue-last-delivery" class="text-sm font-bold text-zinc-900">—</div>
+        <div class="text-[11px] text-zinc-500 mt-1">resultado del envío</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ADMIN MODAL -->
+<div id="admin-modal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm transition-opacity" onclick="closeAdmin()"></div>
+  <div class="absolute inset-x-0 bottom-0 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl bg-white rounded-t-3xl md:rounded-2xl shadow-2xl border border-zinc-200/60 max-h-[85vh] overflow-hidden flex flex-col animate-slide-up">
+    <div class="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-200/60 px-6 py-4 flex items-center justify-between z-10">
+      <div>
+        <h3 class="font-semibold text-zinc-900 tracking-tight">Panel de Administración</h3>
+        <p class="text-[11px] text-zinc-500 mt-0.5">Simula cambios de estado en la base de datos</p>
+      </div>
+      <button onclick="closeAdmin()" class="p-2 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-3 overflow-y-auto flex-1" id="admin-stations-list"></div>
+    <div class="p-6 border-t border-zinc-200/60 bg-zinc-50/50">
+      <div class="flex items-start gap-3 text-xs text-zinc-600">
+        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div>
+          <p class="font-semibold text-zinc-900">Gateway Android <span id="admin-gateway-state" class="font-normal text-zinc-500">verificando...</span></p>
+          <p class="mt-1 text-zinc-500 leading-relaxed">Los SMS se envían vía NOVA SMS Cloud (Vercel + Redis). El teléfono recibe mensajes desde cualquier red celular.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[60] space-y-3 pointer-events-none flex flex-col items-end"></div>
+
+<script>
+// ============ DATA (NOAA HADS Real Metadata) ============
+const STATIONS_DB = [
+  { id: "SFOH3", name: "RIO ULUA AT SAN FRANCISCO DE OJUERAS", location: "San Francisco de Ojueras", lat: 14.7683, lng: -88.1758, owner: "CENAOS/SAMHN", channel: "CE", level: 4.85, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000140" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/105f3b987-afe5-4417-84ab-5511e08e7cac.png" },
+  { id: "CHIH3", name: "RIO ULUA NEAR CHINDA", location: "Chinda, Santa Bárbara", lat: 15.1178, lng: -88.1989, owner: "CENAOS/SAMHN", channel: "CE", level: 3.25, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000150" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/19cca8644-98f4-4229-9633-8713359be075.png" },
+  { id: "SANH3", name: "RIO ULUA AT SANTIAGO", location: "Santiago, Yoro", lat: 15.2969, lng: -87.9281, owner: "CENAOS/SAMHN", channel: "CE", level: 7.85, status: "yellow", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/15.0", coeff: "0.01/0.01" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000200" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/169633c11-63b0-44f4-971a-4d53f9ff9c8b.png" },
+  { id: "RCHH3", name: "RIO CHAMELECON EN EL TABLON", location: "El Tablón, Santa Bárbara", lat: 15.3197, lng: -88.2072, owner: "CENAOS/SAMHN", channel: "CE", level: 3.85, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/0.0", coeff: "0.0/0.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000210" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1ac30cf18-8460-4921-af1b-1247af0a3c25.png" },
+  { id: "LAVH3", name: "LA VEGONA", location: "La Vegona, Santa Bárbara", lat: 15.2117, lng: -88.5378, owner: "CENAOS/SAMHN", channel: "CE", level: 2.45, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.001/-9.0" }, PR: { interval: "60.0/0.0", coeff: "0.001/0.001" }, HG: { interval: "15.0/-9.0", coeff: "0.01/-9.0" } }, transmission: { interval: 60, init: "000220" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1820a4dd6-c301-4662-98f8-86d9ffbc892a.png" },
+  { id: "POSH3", name: "RIO JICATUYO AT SANTIAGO DE POSTA", location: "Santiago de Posta, La Paz", lat: 14.9292, lng: -88.6114, owner: "CENAOS/SAMHN", channel: "CE", level: 7.95, status: "yellow", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "000300" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/11125f75e-7dc9-4a45-bb7d-76049d8c1c3b.png" },
+  { id: "EMPH3", name: "RIO LEAN EN EL EMPALME", location: "El Empalme, Atlántida", lat: 15.6361, lng: -87.3286, owner: "CENAOS/SAMHN", channel: "CE", level: 2.15, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 60, init: "001630" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/17701aa96-272a-4e39-bbb4-c56f135bb4ef.png" },
+  { id: "MANH3", name: "RIO CANGREJAL AT LAS MANGAS", location: "Las Mangas, Atlántida", lat: 15.7247, lng: -86.7256, owner: "CENAOS/SAMHN", channel: "CE", level: 2.05, status: "green", lastAlertSentAt: null, peCodes: { PC: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/0.0", coeff: "0.01/0.01" } }, transmission: { interval: 240, init: "021630" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1bdebd7d7-4dba-4bd9-9f2c-deaed1af203d.png" },
+  { id: "PUDH3", name: "PUENTE LA DEMOCRACIA", location: "La Democracia, Yoro", lat: 15.4039, lng: -87.8200, owner: "CENAOS/SAMHN", channel: "CE", level: 10.85, status: "red", lastAlertSentAt: null, peCodes: { PP: { interval: "15.0/-9.0", coeff: "0.01/-9.0" }, PR: { interval: "60.0/-9.0", coeff: "0.01/-9.0" }, HG: { interval: "15.0/-9.0", coeff: "0.1/-9.0" } }, transmission: { interval: 60, init: "004918" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/10a24f874-abb6-414f-9059-9dcc28a37a1e.png" },
+  { id: "SPSH3", name: "SAN PEDRO SULA", location: "San Pedro Sula, Cortés", lat: 15.5078, lng: -88.0661, owner: "CENAOS/SAMHN", channel: "CE", level: 2.65, status: "green", lastAlertSentAt: null, peCodes: { TN: { interval: "60.0/-9.0", coeff: "0.01/-9.0" }, TX: { interval: "60.0/0.0", coeff: "1.0/0.01" }, PP: { interval: "15.0/15.0", coeff: "1.0/0.01" }, PR: { interval: "1440.0/-9.0", coeff: "1.0/-9.0" } }, transmission: { interval: 60, init: "000540" }, graphUrl: "https://image.qwenlm.ai/public_source/dc98e999-c1c3-46eb-ac47-12aae7eb4f02/1b2bb2f6b-69a7-4827-938d-336e6ef3bd4e.png" }
+];
+
+const CONTACTS_DB = [ { id: 1, name: "Sami", phone: "+50433154594" } ];
+const MAX_LEVEL = 12;
+const SMS_API_URL = "/api/send-sms";
+let currentFilter = 'all';
+let eventLog = [];
+
+// ============ PREMIUM UI CONFIG ============
+const statusConfig = {
+  green: { label: 'NORMAL', badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20', dot: 'bg-emerald-500', border: 'border-emerald-100', accent: 'bg-emerald-500' },
+  yellow: { label: 'PRECAUCIÓN', badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/20', dot: 'bg-amber-500', border: 'border-amber-100', accent: 'bg-amber-500' },
+  red: { label: 'CRÍTICO', badge: 'bg-red-50 text-red-700 ring-1 ring-red-600/20', dot: 'bg-red-500', border: 'border-red-100', accent: 'bg-red-500' }
+};
+
+function formatTimeAgo(date) {
+  if (!date) return 'Nunca';
+  const diff = (Date.now() - new Date(date).getTime()) / 1000;
+  if (diff < 60) return `Hace ${Math.floor(diff)}s`;
+  if (diff < 3600) return `Hace ${Math.floor(diff/60)} min`;
+  if (diff < 86400) return `Hace ${Math.floor(diff/3600)} h`;
+  return `Hace ${Math.floor(diff/86400)} d`;
+}
+
+function getLevelPercent(level) { return Math.min((level / MAX_LEVEL) * 100, 100); }
+function getLevelColor(level) {
+  if (level < 3.0) return 'bg-emerald-500';
+  if (level <= 4.0) return 'bg-amber-500';
+  return 'bg-red-500';
+}
+
+// ============ TOAST ============
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toast-container');
+  const styles = { 
+    success: 'bg-emerald-600 text-white ring-1 ring-emerald-500/20 shadow-emerald-900/10', 
+    error: 'bg-red-600 text-white ring-1 ring-red-500/20 shadow-red-900/10', 
+    info: 'bg-zinc-900 text-white ring-1 ring-zinc-800 shadow-zinc-900/10', 
+    warning: 'bg-amber-600 text-white ring-1 ring-amber-500/20 shadow-amber-900/10' 
+  };
+  const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+  const toast = document.createElement('div');
+  toast.className = `pointer-events-auto ${styles[type]} px-4 py-3 rounded-xl shadow-lg flex items-start gap-3 w-full max-w-sm animate-slide-up backdrop-blur-md`;
+  toast.innerHTML = `<span class="text-lg flex-shrink-0 mt-0.5">${icons[type]}</span><div class="flex-1 text-sm font-medium leading-snug">${message}</div>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
+    toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// ============ EVENT LOG ============
+function addLog(type, title, detail) {
+  eventLog.unshift({ type, title, detail, time: new Date() });
+  if (eventLog.length > 50) eventLog.pop();
+  renderLog();
+}
+function renderLog() {
+  const log = document.getElementById('event-log');
+  if (eventLog.length === 0) { 
+    log.innerHTML = '<div class="p-8 text-center text-sm text-zinc-400 flex flex-col items-center gap-2"><svg class="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Sin eventos registrados</div>'; 
+    return; 
+  }
+  const icons = { sms: '📱', status: '🔄', alert: '🚨', info: 'ℹ️', skip: '⏸️' };
+  log.innerHTML = `<div class="relative pl-4 border-l border-zinc-200 ml-3 space-y-4">` + eventLog.map(e => `
+    <div class="relative group">
+      <div class="absolute -left-[21px] top-1.5 w-3 h-3 rounded-full bg-white border-2 border-zinc-300 group-hover:border-zinc-400 transition-colors"></div>
+      <div class="bg-zinc-50/80 rounded-xl p-3.5 border border-zinc-100 hover:border-zinc-200 hover:shadow-sm transition-all duration-200">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-base leading-none">${icons[e.type] || '•'}</span>
+              <p class="text-sm font-semibold text-zinc-900">${e.title}</p>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed pl-6">${e.detail}</p>
+          </div>
+          <span class="text-[10px] text-zinc-400 flex-shrink-0 font-mono bg-white px-2 py-1 rounded-md border border-zinc-100">${formatTimeAgo(e.time)}</span>
+        </div>
+      </div>
+    </div>
+  `).join('') + `</div>`;
+}
+function clearLog() { eventLog = []; renderLog(); }
+
+// ============ SMS & STATE LOGIC ============
+async function sendSMS(phone, message) {
+  const resp = await fetch(SMS_API_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: phone, message }) });
+  return await resp.json();
+}
+
+async function sendMassSMS(station) {
+  addLog('sms', `Enviando SMS a ${CONTACTS_DB.length} contacto(s)`, `Estación: ${station.name}`);
+  showToast(`📱 Enviando SMS vía NOVA Cloud...`, 'info', 1500);
+  let ok = 0, fail = 0, ids = [];
+  const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRÍTICO ${station.level.toFixed(2)}m. Tome precauciones.`;
+  for (const c of CONTACTS_DB) {
+    try {
+      const r = await sendSMS(c.phone, msg);
+      if (r.success) { ok++; ids.push(r.id); } else fail++;
+    } catch { fail++; }
+  }
+  station.lastAlertSentAt = new Date().toISOString();
+  addLog('sms', `✅ ${ok} encolados, ${fail} fallaron`, `Estación: ${station.id}`);
+  showToast(`✅ ${ok} en cola / ${fail} ERROR`, fail > 0 ? 'warning' : 'success', 4000);
+  saveStationState();
+  if (ids.length > 0) watchDelivery(ids[0], station.id);
+  return { sent: true, ok, fail };
+}
+
+async function sendManualAlert(station) {
+  addLog('alert', `🚨 ALERTA MANUAL — ${station.id}`, `Enviando a ${CONTACTS_DB.length} contactos.`);
+  showToast(`🚨 Enviando alerta manual...`, 'warning', 2500);
+  let ok = 0, fail = 0, ids = [];
+  const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRÍTICO ${station.level.toFixed(2)}m. Tome precauciones.`;
+  for (const c of CONTACTS_DB) {
+    try {
+      const r = await sendSMS(c.phone, msg);
+      if (r.success) { ok++; ids.push(r.id); } else fail++;
+    } catch { fail++; }
+  }
+  station.lastAlertSentAt = new Date().toISOString();
+  addLog('sms', `✅ Alerta manual: ${ok} encolados, ${fail} fallaron`, `${station.id}`);
+  showToast(`✅ ${ok} en cola / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
+  renderStations();
+  saveStationState();
+  if (ids.length > 0) watchDelivery(ids[0], station.id);
+}
+
+async function updateStationStatus(stationId, newStatus) {
+  const station = STATIONS_DB.find(s => s.id === stationId);
+  if (!station) return;
+  const oldStatus = station.status;
+  station.status = newStatus;
+  if (newStatus === 'green') station.level = 1 + Math.random() * 1.9;
+  if (newStatus === 'yellow') station.level = 3 + Math.random() * 0.99;
+  if (newStatus === 'red') station.level = 4.1 + Math.random() * 2;
+  addLog('status', `${stationId}: ${oldStatus.toUpperCase()} → ${newStatus.toUpperCase()}`, `Nivel: ${station.level.toFixed(2)} FT`);
+  showToast(`${station.id} actualizado a ${statusConfig[newStatus].label}`, 'success', 2500);
+  saveStationState();
+  if (newStatus === 'red') await sendMassSMS(station);
+  renderStations();
+  renderAdmin();
+  renderMapPins();
+}
+
+async function loadStationState() {
+  try {
+    const resp = await fetch('/api/stations');
+    const data = await resp.json();
+    if (data.stations) {
+      for (const [id, state] of Object.entries(data.stations)) {
+        const s = STATIONS_DB.find(x => x.id === id);
+        if (s) Object.assign(s, state);
+      }
+      renderStations(); renderHydrographs(); renderAdmin(); renderMapPins();
+      addLog('info', 'Estado cargado desde Redis', `${Object.keys(data.stations).length} estaciones`);
+    }
+  } catch (e) { addLog('info', 'Estado local (Redis no responde)', e.message); }
+}
+
+async function saveStationState() {
+  const state = {};
+  for (const s of STATIONS_DB) state[s.id] = { status: s.status, level: s.level, lastAlertSentAt: s.lastAlertSentAt };
+  try { await fetch('/api/stations', { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stations: state }) }); } catch (e) {}
+}
+
+// ============ GATEWAY & DELIVERY ============
+async function checkGateway() {
+  try {
+    const resp = await fetch('/api/sms-queue');
+    const data = await resp.json();
+    const last = data.lastHeartbeat || 0;
+    const online = (Date.now() - last) < 30000;
+
+    const dot = document.getElementById('gateway-dot');
+    const text = document.getElementById('gateway-text');
+    const pill = document.getElementById('gateway-pill');
+    if (online) {
+      dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+      text.className = 'text-emerald-700'; text.textContent = 'Teléfono online';
+      pill.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-50 border border-emerald-200/60 transition-colors duration-300';
+    } else if (last > 0) {
+      dot.className = 'w-2 h-2 rounded-full bg-red-500';
+      text.className = 'text-red-700'; text.textContent = 'Teléfono offline';
+      pill.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 border border-red-200/60 transition-colors duration-300';
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-zinc-400';
+      text.className = 'text-zinc-600'; text.textContent = 'Sin señal';
+      pill.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-zinc-100 border border-zinc-200/60 transition-colors duration-300';
+    }
+
+    document.getElementById('queue-pending').textContent = data.pending || 0;
+    const phoneDot = document.getElementById('queue-phone-dot');
+    const phoneText = document.getElementById('queue-phone-text');
+    phoneDot.className = online ? 'w-2.5 h-2.5 rounded-full bg-emerald-500' : 'w-2.5 h-2.5 rounded-full bg-red-500';
+    phoneText.textContent = online ? 'ONLINE' : 'OFFLINE';
+    phoneText.className = online ? 'text-sm font-bold text-emerald-700' : 'text-sm font-bold text-red-600';
+    document.getElementById('queue-last-heartbeat').textContent = last > 0 ? `Última señal: ${formatTimeAgo(new Date(last))}` : 'Sin señal registrada';
+
+    const adminState = document.getElementById('admin-gateway-state');
+    if (adminState) adminState.innerHTML = online ? '<span class="text-emerald-600 font-semibold">● online</span>' : '<span class="text-red-600 font-semibold">● offline</span>';
+  } catch (e) {}
+}
+
+function watchDelivery(msgId, stationId) {
+  let attempts = 0;
+  const timer = setInterval(async () => {
+    attempts++;
+    try {
+      const resp = await fetch(`/api/sms-status?id=${msgId}`);
+      const data = await resp.json();
+      if (!data.pending && data.result) {
+        clearInterval(timer);
+        const delivered = data.result.success;
+        document.getElementById('queue-last-delivery').textContent = delivered ? 'Entregado ✓' : 'FALLÓ';
+        document.getElementById('queue-last-delivery').className = delivered ? 'text-sm font-bold text-emerald-700' : 'text-sm font-bold text-red-600';
+        addLog('sms', delivered ? `✅ SMS ENTREGADO` : `❌ SMS FALLÓ`, `ID: ${msgId} · Estación: ${stationId}`);
+        showToast(delivered ? `✅ SMS entregado exitosamente` : `❌ El teléfono no pudo enviarlo`, delivered ? 'success' : 'error', 5000);
+      }
+    } catch (e) {}
+    if (attempts > 40) clearInterval(timer);
+  }, 5000);
+}
+
+// ============ RENDER FUNCTIONS (PREMIUM UI) ============
+function renderStations() {
+  const grid = document.getElementById('stations-grid');
+  const filtered = currentFilter === 'all' ? STATIONS_DB : STATIONS_DB.filter(s => s.status === currentFilter);
+  document.getElementById('count-green').textContent = STATIONS_DB.filter(s => s.status === 'green').length;
+  document.getElementById('count-yellow').textContent = STATIONS_DB.filter(s => s.status === 'yellow').length;
+  document.getElementById('count-red').textContent = STATIONS_DB.filter(s => s.status === 'red').length;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="col-span-full py-16 text-center text-zinc-400 flex flex-col items-center gap-3"><div class="text-4xl">🔍</div><p class="font-medium text-sm">No hay estaciones con este filtro</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map((s, i) => {
+    const cfg = statusConfig[s.status];
+    const isRed = s.status === 'red';
+    const levelPct = getLevelPercent(s.level);
+    const levelColor = getLevelColor(s.level);
+    const peList = Object.keys(s.peCodes).join(', ');
+    return `
+      <article class="card-enter group bg-white rounded-2xl border border-zinc-200/60 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-[0_12px_24px_-8px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col" style="animation-delay: ${i * 40}ms">
+        <div class="h-1 ${cfg.accent}"></div>
+        <div class="p-5 flex flex-col flex-1">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="font-mono text-[10px] font-semibold text-zinc-400 tracking-wider uppercase">${s.id}</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${cfg.badge}">${cfg.label}</span>
+              </div>
+              <h3 class="font-semibold text-zinc-900 text-sm leading-snug line-clamp-2">${s.name}</h3>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-zinc-50 border border-zinc-100 flex items-center justify-center text-zinc-400 group-hover:bg-zinc-100 group-hover:text-zinc-600 transition-colors flex-shrink-0 ml-3">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 text-xs text-zinc-500 mb-4">
+            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="truncate">${s.location}</span>
+          </div>
+
+          <div class="mb-5">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Nivel del río (HG)</span>
+              <span class="text-sm font-bold text-zinc-900 font-mono">${s.level.toFixed(2)} <span class="text-zinc-400 font-sans text-xs font-normal">FT</span></span>
+            </div>
+            <div class="h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+              <div class="h-full ${levelColor} gauge-bar rounded-full relative" style="width: ${levelPct}%">
+                ${isRed ? '<div class="absolute inset-0 bg-white/30 animate-pulse"></div>' : ''}
+              </div>
+            </div>
+            <div class="flex justify-between mt-1.5 text-[9px] text-zinc-400 font-mono tracking-wide">
+              <span>0</span><span>3</span><span>4</span><span>12 FT</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-[10px] mb-4">
+            <div class="bg-zinc-50 rounded-lg p-2.5 border border-zinc-100">
+              <div class="text-zinc-400 mb-0.5">PE Codes</div>
+              <div class="font-semibold text-zinc-700 truncate" title="${peList}">${peList}</div>
+            </div>
+            <div class="bg-zinc-50 rounded-lg p-2.5 border border-zinc-100">
+              <div class="text-zinc-400 mb-0.5">Transmisión</div>
+              <div class="font-semibold text-zinc-700">Cada ${s.transmission.interval} min</div>
+            </div>
+          </div>
+
+          <div class="mt-auto pt-4 border-t border-zinc-100 flex items-center justify-between">
+            <div class="text-[10px] text-zinc-400 flex items-center gap-1.5">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Último SMS: ${formatTimeAgo(s.lastAlertSentAt)}
+            </div>
+            <button onclick="sendManualAlert(STATIONS_DB.find(x=>x.id==='${s.id}'))" class="px-3 py-1.5 bg-zinc-900 hover:bg-red-600 active:scale-95 text-white text-[11px] font-semibold rounded-lg transition-all duration-200 flex items-center gap-1.5 shadow-sm hover:shadow-red-500/25">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+              Alerta Roja
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+}
+
+function renderHydrographs() {
+  const grid = document.getElementById('hydrographs-grid');
+  grid.innerHTML = STATIONS_DB.map(s => {
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="border border-zinc-200/60 rounded-xl overflow-hidden hover:shadow-md hover:border-zinc-300 transition-all duration-300 bg-white">
+        <div class="px-4 py-3 bg-zinc-50/50 border-b border-zinc-100 flex items-center justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="text-[10px] font-mono text-zinc-400 mb-0.5">${s.id}</div>
+            <div class="text-xs font-semibold text-zinc-900 truncate">${s.name}</div>
+          </div>
+          <div class="ml-2 px-2 py-0.5 rounded-full ${cfg.badge} text-[9px] font-bold">${cfg.label}</div>
+        </div>
+        <div class="bg-white p-3">
+          <img src="${s.graphUrl}" alt="HG ${s.id}" class="hydrograph-img w-full rounded-lg border border-zinc-100" loading="lazy" />
+        </div>
+        <div class="px-4 py-3 bg-zinc-50/30 border-t border-zinc-100 text-[10px] text-zinc-500 flex items-center justify-between">
+          <span>HG Height, river stage (FT)</span>
+          <span class="font-mono font-semibold text-zinc-900">${s.level.toFixed(2)} FT</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderContacts() {
+  const list = document.getElementById('contacts-list');
+  list.innerHTML = CONTACTS_DB.map(c => `
+    <div class="flex items-center gap-3 px-5 py-4 hover:bg-zinc-50/80 transition-colors group">
+      <div class="w-9 h-9 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-xs flex-shrink-0 group-hover:scale-105 transition-transform">
+        ${c.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-zinc-900 truncate">${c.name}</div>
+        <div class="text-xs text-zinc-500 font-mono">${c.phone}</div>
+      </div>
+      <div class="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">SMS</div>
+    </div>
+  `).join('');
+}
+
+function renderMapPins() {
+  const container = document.getElementById('map-pins');
+  const latMin = 13, latMax = 16.5, lngMin = -89.5, lngMax = -83;
+  container.innerHTML = STATIONS_DB.map(s => {
+    const x = ((s.lng - lngMin) / (lngMax - lngMin)) * 100;
+    const y = 100 - ((s.lat - latMin) / (latMax - latMin)) * 100;
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="map-pin group ${s.status === 'red' ? 'active' : ''} absolute" style="left: ${x}%; top: ${y}%; transform: translate(-50%, -50%);">
+        <div class="relative">
+          <div class="pin-dot w-3.5 h-3.5 rounded-full ${cfg.dot} border-2 border-white shadow-md"></div>
+          <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white/95 backdrop-blur px-2 py-1 rounded-md text-[9px] font-bold text-zinc-700 whitespace-nowrap shadow-sm border border-zinc-200/60 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">${s.id}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============ ADMIN & FILTERS ============
+function openAdmin() { renderAdmin(); document.getElementById('admin-modal').classList.remove('hidden'); }
+function closeAdmin() { document.getElementById('admin-modal').classList.add('hidden'); }
+function renderAdmin() {
+  const list = document.getElementById('admin-stations-list');
+  list.innerHTML = STATIONS_DB.map(s => {
+    const cfg = statusConfig[s.status];
+    return `
+      <div class="bg-zinc-50 rounded-xl p-4 border border-zinc-200/60 hover:border-zinc-300 transition-colors">
+        <div class="flex items-center justify-between mb-3">
+          <div class="min-w-0 flex-1">
+            <div class="text-[10px] font-mono text-zinc-400 mb-0.5">${s.id}</div>
+            <div class="text-sm font-semibold text-zinc-900 truncate">${s.name}</div>
+          </div>
+          <div class="ml-2 px-2 py-1 rounded-full ${cfg.badge} text-[10px] font-bold">${cfg.label}</div>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="updateStationStatus('${s.id}','green')" class="px-2 py-2 text-[11px] font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all">🟢 Verde</button>
+          <button onclick="updateStationStatus('${s.id}','yellow')" class="px-2 py-2 text-[11px] font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition-all">🟡 Amarillo</button>
+          <button onclick="updateStationStatus('${s.id}','red')" class="px-2 py-2 text-[11px] font-semibold rounded-lg bg-white border border-zinc-200 text-zinc-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all">🔴 Rojo</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => {
+      b.classList.remove('bg-zinc-900', 'text-white', 'shadow-sm');
+      b.classList.add('text-zinc-600', 'hover:text-zinc-900', 'hover:bg-white/60');
+    });
+    btn.classList.remove('text-zinc-600', 'hover:text-zinc-900', 'hover:bg-white/60');
+    btn.classList.add('bg-zinc-900', 'text-white', 'shadow-sm');
+    renderStations();
+  });
+});
+
+function refreshStations() {
+  const icon = document.getElementById('refresh-icon');
+  icon.style.transition = 'transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  icon.style.transform = 'rotate(360deg)';
+  setTimeout(() => { icon.style.transform = ''; }, 800);
+  renderStations();
+  addLog('info', 'Datos actualizados', `${STATIONS_DB.length} estaciones consultadas`);
+  showToast('Datos actualizados correctamente', 'info', 2000);
+}
+
+// ============ INIT ============
+function updateClock() { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('es-HN', { hour12: false }); }
+setInterval(updateClock, 1000);
+updateClock();
+
+renderStations();
+renderHydrographs();
+renderContacts();
+renderMapPins();
+renderLog();
+addLog('info', 'Sistema iniciado', 'NOVA SMS Cloud conectado');
+addLog('info', 'Estaciones cargadas', `${STATIONS_DB.length} estaciones NOAA HADS, ${CONTACTS_DB.length} contactos`);
+loadStationState();
+checkGateway();
+setInterval(checkGateway, 5000);
+</script>
+</body>
+</html>
