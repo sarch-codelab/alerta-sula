@@ -7,11 +7,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: "Faltan parametros" });
   }
   const id = "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-  const kvUrl = process.env.KV_REST_API_URL;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.KV_URL;
   const kvToken = process.env.KV_REST_API_TOKEN;
 
+  const envs = {
+    KV_REST_API_URL: !!process.env.KV_REST_API_URL,
+    KV_REST_API_TOKEN: !!process.env.KV_REST_API_TOKEN,
+    KV_URL: !!process.env.KV_URL,
+  };
+
   if (!kvUrl || !kvToken) {
-    return res.status(500).json({ success: false, error: "KV no configurado" });
+    return res.status(500).json({ success: false, error: "KV no configurado", envs });
   }
 
   try {

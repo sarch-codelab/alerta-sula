@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   if (!id) {
     return res.status(400).json({ success: false, error: "Falta id" });
   }
-  const kvUrl = process.env.KV_REST_API_URL;
+  const kvUrl = process.env.KV_REST_API_URL || process.env.KV_URL;
   const kvToken = process.env.KV_REST_API_TOKEN;
 
   if (!kvUrl || !kvToken) {
