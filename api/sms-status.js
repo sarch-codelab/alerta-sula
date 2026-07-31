@@ -19,18 +19,20 @@ export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
+  const { id } = req.query;
+  if (!id) {
+    return res.status(400).json({ success: false, error: "Falta id" });
+  }
   const r = getRedis();
   if (!r) {
     return res.status(500).json({ success: false, error: "Redis no configurado" });
   }
   try {
-    await r.set("sms:heartbeat", String(Date.now()));
-    const raw = await r.rpop("sms_queue");
+    const raw = await r.get(`sms_result:${id}`);
     if (!raw) {
-      return res.status(200).json({ message: null });
+      return res.status(200).json({ pending: true, result: null });
     }
-    const msg = JSON.parse(raw);
-    return res.status(200).json({ message: msg });
+    return res.status(200).json({ pending: false, result: JSON.parse(raw) });
   } catch (err) {
     return res.status(502).json({ success: false, error: err.message });
   }

@@ -8,6 +8,15 @@
     },
     "api/sms-report.js": {
       "maxDuration": 30
+    },
+    "api/sms-queue.js": {
+      "maxDuration": 30
+    },
+    "api/sms-status.js": {
+      "maxDuration": 30
+    },
+    "api/stations.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

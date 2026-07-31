@@ -16,21 +16,24 @@ function getRedis() {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
-  }
   const r = getRedis();
   if (!r) {
     return res.status(500).json({ success: false, error: "Redis no configurado" });
   }
   try {
-    await r.set("sms:heartbeat", String(Date.now()));
-    const raw = await r.rpop("sms_queue");
-    if (!raw) {
-      return res.status(200).json({ message: null });
+    if (req.method === "GET") {
+      const raw = await r.get("stations:state");
+      return res.status(200).json({ stations: raw ? JSON.parse(raw) : null });
     }
-    const msg = JSON.parse(raw);
-    return res.status(200).json({ message: msg });
+    if (req.method === "POST") {
+      const { stations } = req.body;
+      if (!stations) {
+        return res.status(400).json({ success: false, error: "Falta stations" });
+      }
+      await r.set("stations:state", JSON.stringify(stations));
+      return res.status(200).json({ success: true });
+    }
+    return res.status(405).json({ success: false, error: "Method not allowed" });
   } catch (err) {
     return res.status(502).json({ success: false, error: err.message });
   }

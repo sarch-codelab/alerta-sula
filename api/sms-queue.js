@@ -24,13 +24,14 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, error: "Redis no configurado" });
   }
   try {
-    await r.set("sms:heartbeat", String(Date.now()));
-    const raw = await r.rpop("sms_queue");
-    if (!raw) {
-      return res.status(200).json({ message: null });
-    }
-    const msg = JSON.parse(raw);
-    return res.status(200).json({ message: msg });
+    const [pending, heartbeat] = await Promise.all([
+      r.llen("sms_queue"),
+      r.get("sms:heartbeat"),
+    ]);
+    return res.status(200).json({
+      pending: pending || 0,
+      lastHeartbeat: heartbeat ? parseInt(heartbeat, 10) : 0,
+    });
   } catch (err) {
     return res.status(502).json({ success: false, error: err.message });
   }

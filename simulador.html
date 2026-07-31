@@ -68,6 +68,10 @@
         <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         <span class="text-slate-600 font-medium">10 estaciones NOAA HADS</span>
       </div>
+      <div id="gateway-pill" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100">
+        <span id="gateway-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+        <span id="gateway-text" class="text-slate-600">Verificando...</span>
+      </div>
       <button onclick="openAdmin()" class="p-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition" title="Panel Admin">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       </button>
@@ -180,6 +184,34 @@
     </div>
     <div id="event-log" class="divide-y divide-slate-100 max-h-80 overflow-y-auto"></div>
   </section>
+
+  <!-- SMS QUEUE STATUS -->
+  <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8 mt-8">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <h2 class="font-bold text-slate-900 text-base">📡 Estado del Gateway SMS</h2>
+      <p class="text-[11px] text-slate-500">NOVA SMS Cloud · Vercel + Redis</p>
+    </div>
+    <div class="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Teléfono Android</div>
+        <div class="flex items-center gap-2">
+          <span id="queue-phone-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+          <span id="queue-phone-text" class="text-sm font-bold text-slate-900">Verificando...</span>
+        </div>
+        <div id="queue-last-heartbeat" class="text-[11px] text-slate-500 mt-1">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Mensajes en cola</div>
+        <div id="queue-pending" class="text-3xl font-bold text-slate-900">0</div>
+        <div class="text-[11px] text-slate-500 mt-1">esperando al teléfono</div>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Última entrega</div>
+        <div id="queue-last-delivery" class="text-sm font-bold text-slate-900">—</div>
+        <div class="text-[11px] text-slate-500 mt-1">resultado del envío</div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <!-- ADMIN MODAL -->
@@ -200,8 +232,8 @@
       <div class="flex items-start gap-3 text-xs text-slate-600">
         <svg class="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         <div>
-          <p class="font-semibold text-slate-800">Gateway Android conectado</p>
-          <p class="mt-1">Los SMS se envían en tiempo real vía Android + ngrok. Sin restricción de spam.</p>
+          <p class="font-semibold text-slate-800">Gateway Android <span id="admin-gateway-state">verificando...</span></p>
+          <p class="mt-1">Los SMS se envían vía NOVA SMS Cloud (Vercel + Redis). El teléfono recibe mensajes desde cualquier red.</p>
         </div>
       </div>
     </div>
@@ -380,36 +412,40 @@ async function sendSMS(phone, message) {
 
 async function sendMassSMS(station) {
   addLog('sms', `Enviando SMS a ${CONTACTS_DB.length} contacto(s)`, `Estación: ${station.name}`);
-  showToast(`📱 Enviando SMS vía Android...`, 'info', 1500);
-  let ok = 0, fail = 0;
+  showToast(`📱 Enviando SMS vía NOVA Cloud...`, 'info', 1500);
+  let ok = 0, fail = 0, ids = [];
   const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRITICO ${station.level.toFixed(2)}m. Tome precauciones.`;
   for (const c of CONTACTS_DB) {
     try {
       const r = await sendSMS(c.phone, msg);
-      if (r.success) ok++; else fail++;
+      if (r.success) { ok++; ids.push(r.id); } else fail++;
     } catch { fail++; }
   }
   station.lastAlertSentAt = new Date().toISOString();
-  addLog('sms', `✅ ${ok} enviados, ${fail} fallaron`, `Estación: ${station.id}`);
-  showToast(`✅ ${ok} OK / ${fail} ERROR`, fail > 0 ? 'warning' : 'success', 4000);
+  addLog('sms', `✅ ${ok} encolados, ${fail} fallaron`, `Estación: ${station.id}`);
+  showToast(`✅ ${ok} en cola / ${fail} ERROR`, fail > 0 ? 'warning' : 'success', 4000);
+  saveStationState();
+  if (ids.length > 0) watchDelivery(ids[0], station.id);
   return { sent: true, ok, fail };
 }
 
 async function sendManualAlert(station) {
-  addLog('alert', `🚨 ALERTA MANUAL — ${station.id}`, `Ignorando anti-spam. Enviando a ${CONTACTS_DB.length} contactos.`);
+  addLog('alert', `🚨 ALERTA MANUAL — ${station.id}`, `Enviando a ${CONTACTS_DB.length} contactos.`);
   showToast(`🚨 Enviando alerta manual a ${CONTACTS_DB.length} contactos...`, 'warning', 2500);
-  let ok = 0, fail = 0;
+  let ok = 0, fail = 0, ids = [];
   const msg = `🚨 ALERTA SAMHN: ${station.name} nivel CRITICO ${station.level.toFixed(2)}m. Tome precauciones.`;
   for (const c of CONTACTS_DB) {
     try {
       const r = await sendSMS(c.phone, msg);
-      if (r.success) ok++; else fail++;
+      if (r.success) { ok++; ids.push(r.id); } else fail++;
     } catch { fail++; }
   }
   station.lastAlertSentAt = new Date().toISOString();
-  addLog('sms', `✅ Alerta manual: ${ok} enviados, ${fail} fallaron`, `${station.id}`);
-  showToast(`✅ ${ok} enviados / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
+  addLog('sms', `✅ Alerta manual: ${ok} encolados, ${fail} fallaron`, `${station.id}`);
+  showToast(`✅ ${ok} en cola / ${fail} fallaron`, fail > 0 ? 'warning' : 'success', 4000);
   renderStations();
+  saveStationState();
+  if (ids.length > 0) watchDelivery(ids[0], station.id);
 }
 
 async function updateStationStatus(stationId, newStatus) {
@@ -422,10 +458,114 @@ async function updateStationStatus(stationId, newStatus) {
   if (newStatus === 'red') station.level = 4.1 + Math.random() * 2;
   addLog('status', `${stationId}: ${oldStatus.toUpperCase()} → ${newStatus.toUpperCase()}`, `Nivel: ${station.level.toFixed(2)}m`);
   showToast(`${station.id} actualizado a ${statusConfig[newStatus].label}`, 'success', 2500);
+  saveStationState();
   if (newStatus === 'red') await sendMassSMS(station);
   renderStations();
   renderAdmin();
   renderMapPins();
+}
+
+// ============ ESTADO DE ESTACIONES (Redis) ============
+async function loadStationState() {
+  try {
+    const resp = await fetch('/api/stations');
+    const data = await resp.json();
+    if (data.stations) {
+      for (const [id, state] of Object.entries(data.stations)) {
+        const s = STATIONS_DB.find(x => x.id === id);
+        if (s) Object.assign(s, state);
+      }
+      renderStations();
+      renderHydrographs();
+      renderAdmin();
+      renderMapPins();
+      addLog('info', 'Estado cargado desde Redis', `${Object.keys(data.stations).length} estaciones con estado guardado`);
+    }
+  } catch (e) {
+    addLog('info', 'Estado local (Redis no responde)', e.message);
+  }
+}
+
+async function saveStationState() {
+  const state = {};
+  for (const s of STATIONS_DB) {
+    state[s.id] = { status: s.status, level: s.level, lastAlertSentAt: s.lastAlertSentAt };
+  }
+  try {
+    await fetch('/api/stations', {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stations: state }),
+    });
+  } catch (e) { /* sin conexion */ }
+}
+
+// ============ ESTADO DEL GATEWAY (heartbeat) ============
+async function checkGateway() {
+  try {
+    const resp = await fetch('/api/sms-queue');
+    const data = await resp.json();
+    const last = data.lastHeartbeat || 0;
+    const online = (Date.now() - last) < 30000;
+
+    const dot = document.getElementById('gateway-dot');
+    const text = document.getElementById('gateway-text');
+    const pill = document.getElementById('gateway-pill');
+    if (online) {
+      dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+      text.className = 'text-emerald-700';
+      text.textContent = 'Teléfono online';
+      pill.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 border border-emerald-200';
+    } else if (last > 0) {
+      dot.className = 'w-2 h-2 rounded-full bg-red-500';
+      text.className = 'text-red-700';
+      text.textContent = 'Teléfono offline';
+      pill.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 border border-red-200';
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-slate-400';
+      text.className = 'text-slate-600';
+      text.textContent = 'Sin señal';
+      pill.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100';
+    }
+
+    document.getElementById('queue-pending').textContent = data.pending || 0;
+    const phoneDot = document.getElementById('queue-phone-dot');
+    const phoneText = document.getElementById('queue-phone-text');
+    phoneDot.className = online ? 'w-2.5 h-2.5 rounded-full bg-emerald-500' : 'w-2.5 h-2.5 rounded-full bg-red-500';
+    phoneText.textContent = online ? 'ONLINE' : 'OFFLINE';
+    phoneText.className = online ? 'text-sm font-bold text-emerald-700' : 'text-sm font-bold text-red-600';
+    document.getElementById('queue-last-heartbeat').textContent = last > 0 ? `Última señal: ${formatTimeAgo(new Date(last))}` : 'Sin señal registrada';
+
+    const adminState = document.getElementById('admin-gateway-state');
+    if (adminState) {
+      adminState.innerHTML = online
+        ? '<span class="text-emerald-600 font-bold">● online</span>'
+        : '<span class="text-red-600 font-bold">● offline</span>';
+    }
+  } catch (e) { /* sin conexion */ }
+}
+
+// ============ CONFIRMACION DE ENTREGA ============
+function watchDelivery(msgId, stationId) {
+  let attempts = 0;
+  const timer = setInterval(async () => {
+    attempts++;
+    try {
+      const resp = await fetch(`/api/sms-status?id=${msgId}`);
+      const data = await resp.json();
+      if (!data.pending && data.result) {
+        clearInterval(timer);
+        const delivered = data.result.success;
+        document.getElementById('queue-last-delivery').textContent = delivered ? 'Entregado ✓' : 'FALLÓ';
+        document.getElementById('queue-last-delivery').className = delivered
+          ? 'text-sm font-bold text-emerald-700'
+          : 'text-sm font-bold text-red-600';
+        addLog('sms', delivered ? `✅ SMS ENTREGADO` : `❌ SMS FALLÓ`, `ID: ${msgId} · Estación: ${stationId}`);
+        showToast(delivered ? `✅ SMS entregado al teléfono y enviado` : `❌ El teléfono no pudo enviarlo`, delivered ? 'success' : 'error', 5000);
+      }
+    } catch (e) { /* ignore */ }
+    if (attempts > 40) { clearInterval(timer); }
+  }, 5000);
 }
 
 // ============ RENDER STATIONS ============
@@ -631,8 +771,11 @@ renderHydrographs();
 renderContacts();
 renderMapPins();
 renderLog();
-addLog('info', 'Sistema iniciado', 'Conexión establecida con API Server');
-addLog('info', 'Base de datos cargada', `${STATIONS_DB.length} estaciones NOAA HADS, ${CONTACTS_DB.length} contactos`);
+addLog('info', 'Sistema iniciado', 'NOVA SMS Cloud conectado');
+addLog('info', 'Estaciones cargadas', `${STATIONS_DB.length} estaciones NOAA HADS, ${CONTACTS_DB.length} contactos`);
+loadStationState();
+checkGateway();
+setInterval(checkGateway, 5000);
 setInterval(renderLog, 30000);
 </script>
 </body>
